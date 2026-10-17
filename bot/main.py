@@ -1,8 +1,7 @@
-"""Telegram bot service entrypoint.
+"""Telegram bot service entrypoint (aiogram 3.x, long polling).
 
-Milestone 1 scaffolding: wires the process to the shared Django ORM
-(``django.setup()``), validates configuration and keeps the container alive.
-Bot handlers, FSM wizards, i18n strings and middleware arrive in Milestone 3.
+Wires the process to the shared Django ORM via ``django.setup()``, registers
+the blocked-user middleware and the command router, then polls forever.
 """
 import asyncio
 import logging
@@ -20,6 +19,13 @@ django.setup()
 
 from django.conf import settings  # noqa: E402
 
+from aiogram import Bot, Dispatcher  # noqa: E402
+from aiogram.client.default import DefaultBotProperties  # noqa: E402
+from aiogram.enums import ParseMode  # noqa: E402
+
+from bot.handlers import router  # noqa: E402
+from bot.middleware import BlockedUserMiddleware  # noqa: E402
+
 logger = logging.getLogger("bot")
 logging.basicConfig(
     level=logging.INFO,
@@ -29,24 +35,46 @@ logging.basicConfig(
 HEARTBEAT_SECONDS = 60
 
 
-async def run():
-    if not settings.BOT_TOKEN:
-        logger.warning(
-            "BOT_TOKEN is not set. The bot service cannot poll Telegram. "
-            "Set BOT_TOKEN in .env and restart the container."
-        )
-    else:
-        logger.info("BOT_TOKEN loaded (value hidden). Long-polling starts in Milestone 3.")
+async def run_polling(bot: Bot, dispatcher: Dispatcher):
+    await dispatcher.start_polling(
+        bot,
+        handle_signals=True,
+    )
 
-    logger.info("Bot service scaffolding is running; heartbeat every %ss.", HEARTBEAT_SECONDS)
+
+async def idle_forever():
     while True:
-        logger.info("bot heartbeat: alive")
+        logger.warning(
+            "BOT_TOKEN is not set; the bot cannot reach Telegram. "
+            "Set BOT_TOKEN in .env and restart the bot container."
+        )
+        logger.info("bot heartbeat: idle")
         await asyncio.sleep(HEARTBEAT_SECONDS)
 
 
+async def bootstrap():
+    if not settings.BOT_TOKEN:
+        await idle_forever()
+        return
+
+    bot = Bot(
+        token=settings.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
+    dispatcher = Dispatcher()
+    dispatcher.message.outer_middleware(BlockedUserMiddleware())
+    dispatcher.callback_query.outer_middleware(BlockedUserMiddleware())
+    dispatcher.include_router(router)
+    logger.info("Starting long polling for @%s...", (await bot.get_me()).username)
+    await run_polling(bot, dispatcher)
+
+
 def main():
-    logger.info("Starting Campus Lost & Found bot service (aiogram 3.x from Milestone 3).")
-    asyncio.run(run())
+    logger.info("Starting Campus Lost & Found bot service (aiogram 3.x).")
+    try:
+        asyncio.run(bootstrap())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot service stopped.")
 
 
 if __name__ == "__main__":
