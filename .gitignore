@@ -1,0 +1,26 @@
+# Secrets
+.env
+
+# SQLite database and user media
+data/
+media/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Django
+staticfiles/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

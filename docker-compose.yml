@@ -1,0 +1,63 @@
+services:
+  web:
+    build: .
+    container_name: lnf_web
+    env_file: .env
+    environment:
+      SQLITE_PATH: /app/data/db.sqlite3
+      MEDIA_ROOT: /app/media
+      STATIC_ROOT: /app/staticfiles
+    command: >
+      sh -c "python web/manage.py migrate --noinput &&
+             python web/manage.py collectstatic --noinput &&
+             gunicorn --chdir web config.wsgi:application --bind 0.0.0.0:8000 --workers 2"
+    volumes:
+      - sqlite_data:/app/data
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/admin/login/', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  bot:
+    build: .
+    container_name: lnf_bot
+    env_file: .env
+    environment:
+      SQLITE_PATH: /app/data/db.sqlite3
+      MEDIA_ROOT: /app/media
+    command: python bot/main.py
+    volumes:
+      - sqlite_data:/app/data
+      - media_data:/app/media
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: lnf_worker
+    env_file: .env
+    environment:
+      SQLITE_PATH: /app/data/db.sqlite3
+      MEDIA_ROOT: /app/media
+    command: python worker/main.py
+    volumes:
+      - sqlite_data:/app/data
+      - media_data:/app/media
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+  media_data:
+  static_data:
