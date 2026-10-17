@@ -32,7 +32,7 @@ services:
     environment:
       SQLITE_PATH: /app/data/db.sqlite3
       MEDIA_ROOT: /app/media
-    command: python bot/main.py
+    command: python -m bot.main
     volumes:
       - sqlite_data:/app/data
       - media_data:/app/media
