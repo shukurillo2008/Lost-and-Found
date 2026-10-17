@@ -79,6 +79,3 @@ LOST and FOUND
 * **Stop Criteria**: All tests pass; CI workflow is green; printable QR labels generate valid PDFs[cite: 6, 7].
 
 ---
-
-## 6. Milestone Completion Template
-At the conclusion of each milestone, output your response strictly using this format:
