@@ -126,6 +126,10 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Auto-translate blank reference-data fields (Category/Color/Location) on save
+# using an online translator. When disabled, staff fills translations by hand.
+AUTO_TRANSLATE = env("AUTO_TRANSLATE", "True").lower() in ("1", "true", "yes")
+
 # Bot / office integration values (used by bot and worker services).
 BOT_TOKEN = env("BOT_TOKEN")
 OFFICE_GROUP_ID = env("OFFICE_GROUP_ID")

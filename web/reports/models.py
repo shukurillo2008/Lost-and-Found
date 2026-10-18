@@ -1,5 +1,7 @@
 from django.db import models
 
+from catalog.translation import auto_fill
+
 
 class ReportQuerySet(models.QuerySet):
     """Optimized queryset shared by lost and found reports."""
@@ -40,7 +42,34 @@ CUSTODY_CHOICES = (
 )
 
 
-class LostReport(models.Model):
+class ReportInternals(models.Model):
+    """Shared behaviour for Lost/Found reports (never instantiated)."""
+
+    class Meta:
+        abstract = True
+
+    def _sync_translated_title(self) -> None:
+        """Sync the reporter-language title stream from ``title`` and
+        auto-translate the other two (blank) streams."""
+        src = (self.reporter.language if self.reporter_id else "en") or "en"
+        if src not in ("uz", "ru", "en"):
+            src = "en"
+        fields_map = {
+            lang: (getattr(self, f"title_{lang}", "") or "")
+            for lang in ("uz", "en", "ru")
+        }
+        fields_map[src] = self.title
+        auto_fill(fields_map, source_lang=src)
+        for lang, value in fields_map.items():
+            setattr(self, f"title_{lang}", value)
+
+    def title_in(self, lang: str) -> str:
+        """Title shown in ``lang``; falls back to the original entry."""
+        value = getattr(self, f"title_{lang}", "") or ""
+        return value or self.title
+
+
+class LostReport(ReportInternals):
     """A user's claim that they lost an item."""
 
     reporter = models.ForeignKey(
@@ -50,6 +79,9 @@ class LostReport(models.Model):
         "catalog.Category", on_delete=models.PROTECT, related_name="lost_reports"
     )
     title = models.CharField(max_length=120)
+    title_uz = models.CharField(max_length=120, blank=True)
+    title_en = models.CharField(max_length=120, blank=True)
+    title_ru = models.CharField(max_length=120, blank=True)
     description = models.TextField()
     color = models.ForeignKey(
         "catalog.Color", on_delete=models.PROTECT, related_name="lost_reports"
@@ -73,11 +105,15 @@ class LostReport(models.Model):
             models.Index(fields=["reporter", "status"], name="lost_reporter_status_idx"),
         ]
 
+    def save(self, *args, **kwargs):
+        self._sync_translated_title()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"[LOST {self.pk}] {self.title} ({self.status})"
 
 
-class FoundReport(models.Model):
+class FoundReport(ReportInternals):
     """A user's claim that they found an item."""
 
     reporter = models.ForeignKey(
@@ -87,6 +123,9 @@ class FoundReport(models.Model):
         "catalog.Category", on_delete=models.PROTECT, related_name="found_reports"
     )
     title = models.CharField(max_length=120)
+    title_uz = models.CharField(max_length=120, blank=True)
+    title_en = models.CharField(max_length=120, blank=True)
+    title_ru = models.CharField(max_length=120, blank=True)
     description = models.TextField()
     color = models.ForeignKey(
         "catalog.Color", on_delete=models.PROTECT, related_name="found_reports"
@@ -112,6 +151,10 @@ class FoundReport(models.Model):
             models.Index(fields=["reporter", "status"], name="found_reporter_status_idx"),
             models.Index(fields=["category", "status"], name="found_cat_status_idx"),
         ]
+
+    def save(self, *args, **kwargs):
+        self._sync_translated_title()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"[FOUND {self.pk}] {self.title} ({self.status})"

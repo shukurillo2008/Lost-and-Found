@@ -18,42 +18,66 @@ from django.utils import timezone
 
 from bot_app.models import TelegramUser
 from catalog.models import Category, Color, Location
+from catalog import translation
 from reports.models import FoundReport, LostReport
 from storage.models import StoredItem
 
 random.seed(42)
 
 BUILDINGS = {
-    "Main Building": [
-        "Canteen", "Lobby", "2nd Floor Corridor", "Lecture Hall 1",
-        "Room 104", "North Elevator", "Bus stop",
-    ],
-    "Library": [
-        "1st Floor Atrium", "2nd Floor Study Hall", "3rd Floor Reading Room",
-        "Basement Stacks", "Locker Area", "Computer Lab",
-    ],
-    "Sport Complex": [
-        "Gym Lobby", "Swimming Pool Entrance", "Basketball Court",
-        "Fitness Hall", "Track Stand", "Vending Machine Corridor",
-        "Squash Court Area",
-    ],
+    "Asosiy bino": ("Главный корпус", "Main Building", [
+        ("Oshxona", "Столовая", "Canteen"),
+        ("Foye", "Фойе", "Lobby"),
+        ("2-qavat koridori", "Коридор 2-го этажа", "2nd Floor Corridor"),
+        ("1-sonli auditoriya", "Аудитория №1", "Lecture Hall 1"),
+        ("104-xona", "Кабинет 104", "Room 104"),
+        ("Shimoliy lift", "Северный лифт", "North Elevator"),
+        ("Avtobus bekat", "Автобусная остановка", "Bus stop"),
+    ]),
+    "Kutubxona": ("Библиотека", "Library", [
+        ("1-qavat atriumi", "Атриум 1-го этажа", "1st Floor Atrium"),
+        ("2-qavat o‘quv zali", "Учебный зал 2-го этажа", "2nd Floor Study Hall"),
+        ("3-qavat o‘qish zali", "Читальный зал 3-го этажа", "3rd Floor Reading Room"),
+        ("Quyi qavat kitob ombori", "Книжное хранилище (подвал)", "Basement Stacks"),
+        ("Shkafchalar zonasi", "Зона шкафчиков", "Locker Area"),
+        ("Kompyuter sinfxonasi", "Компьютерный класс", "Computer Lab"),
+    ]),
+    "Sport majmuasi": ("Спортивный комплекс", "Sport Complex", [
+        ("Sport zali foyesi", "Фойе спортзала", "Gym Lobby"),
+        ("Basseyn kirish qismi", "Вход в бассейн", "Swimming Pool Entrance"),
+        ("Basketbol maydonchasi", "Баскетбольная площадка", "Basketball Court"),
+        ("Fitnes zali", "Фитнес-зал", "Fitness Hall"),
+        ("Yugurish yo‘lkasi tribunasi", "Трибуна беговой дорожки", "Track Stand"),
+        ("Avtomatlar koridori", "Коридор с автоматами", "Vending Machine Corridor"),
+        ("Skvosh maydonchasi", "Сквош-корты", "Squash Court Area"),
+    ]),
 }
 
 CATEGORIES = [
-    ("documents", "📄", 180),
-    ("keys", "🔑", 45),
-    ("electronics", "💻", 90),
-    ("clothing", "👕", 30),
-    ("bags", "🎒", 60),
-    ("bottles & containers", "🧴", 30),
-    ("books & stationery", "📚", 90),
-    ("jewellery & accessories", "💍", 60),
-    ("other", "📦", 30),
+    ("Hujjatlar", "Документы", "Documents", "📄", 180),
+    ("Kalitlar", "Ключи", "Keys", "🔑", 45),
+    ("Elektronika", "Электроника", "Electronics", "💻", 90),
+    ("Kiyimlar", "Одежда", "Clothing", "👕", 30),
+    ("Sumkalar", "Сумки", "Bags", "🎒", 60),
+    ("Butilka va idishlar", "Бутылки и контейнеры", "Bottles & containers", "🧴", 30),
+    ("Kitob va kantselyariya", "Книги и канцелярия", "Books & stationery", "📚", 90),
+    ("Taqinchoqlar va aksessuarlar", "Украшения и аксессуары", "Jewellery & accessories", "💍", 60),
+    ("Boshqalar", "Прочее", "Other", "📦", 30),
 ]
 
 COLORS = [
-    "black", "white", "grey", "red", "blue", "green",
-    "yellow", "orange", "pink", "purple", "brown", "silver",
+    ("Qora", "Чёрный", "Black"),
+    ("Oq", "Белый", "White"),
+    ("Kulrang", "Серый", "Grey"),
+    ("Qizil", "Красный", "Red"),
+    ("Ko‘k", "Синий", "Blue"),
+    ("Yashil", "Зелёный", "Green"),
+    ("Sariq", "Жёлтый", "Yellow"),
+    ("To‘q sariq", "Оранжевый", "Orange"),
+    ("Pushti", "Розовый", "Pink"),
+    ("Binafsha", "Фиолетовый", "Purple"),
+    ("Jigarrang", "Коричневый", "Brown"),
+    ("Kumushrang", "Серебристый", "Silver"),
 ]
 
 FULL_NAMES = [
@@ -75,15 +99,15 @@ STAFF_ACCOUNTS = [
 ]
 
 TITLES = {
-    "documents": ["Student ID card", "International passport", "Bus pass", "Course certificate", "Insurance card"],
-    "keys": ["Dorm key ring", "Backpack keychain", "Car keys", "Office key with lanyard"],
-    "electronics": ["Wireless earbuds", "Charging cable", "Laptop charger", "USB flash drive", "Smartwatch"],
-    "clothing": ["Black scarf", "Sports cap", "Winter gloves", "Earphone case", "Warm jacket"],
-    "bags": ["Leather backpack", "Shopping bag", "Shoulder bag", "Transparent pencil holder"],
-    "bottles & containers": ["Steel water bottle", "Lunch container", "Coffee thermos", "Glass water jar"],
-    "books & stationery": ["Statistics notebook", "Data structures textbook", "Math pen case", "Art folder"],
-    "jewellery & accessories": ["Silver chain bracelet", "Gold ring", "Reading glasses", "Analog wristwatch", "Hair clip"],
-    "other": ["Compact umbrella", "Chess board", "Bicycle helmet", "Yoga mat"],
+    "Hujjatlar": ["Student ID card", "International passport", "Bus pass", "Course certificate", "Insurance card"],
+    "Kalitlar": ["Dorm key ring", "Backpack keychain", "Car keys", "Office key with lanyard"],
+    "Elektronika": ["Wireless earbuds", "Charging cable", "Laptop charger", "USB flash drive", "Smartwatch"],
+    "Kiyimlar": ["Black scarf", "Sports cap", "Winter gloves", "Earphone case", "Warm jacket"],
+    "Sumkalar": ["Leather backpack", "Shopping bag", "Shoulder bag", "Transparent pencil holder"],
+    "Butilka va idishlar": ["Steel water bottle", "Lunch container", "Coffee thermos", "Glass water jar"],
+    "Kitob va kantselyariya": ["Statistics notebook", "Data structures textbook", "Math pen case", "Art folder"],
+    "Taqinchoqlar va aksessuarlar": ["Silver chain bracelet", "Gold ring", "Reading glasses", "Analog wristwatch", "Hair clip"],
+    "Boshqalar": ["Compact umbrella", "Chess board", "Bicycle helmet", "Yoga mat"],
 }
 
 BRANDS = ["Xiaomi", "Samsung", "Apple", "Casio", "Adidas", "Nike", "Anker", "Zara", "Lotus", "Fujifilm", "Candy", "Mint"]
@@ -148,6 +172,7 @@ class Command(BaseCommand):
         self._seed_staff()
         self.stdout.write(self.style.SUCCESS("ok"))
 
+
         self.stdout.write("Seeding Telegram users ...", ending=" ")
         users = self._seed_users()
         self.stdout.write(self.style.SUCCESS("ok"))
@@ -156,19 +181,20 @@ class Command(BaseCommand):
         colors = list(Color.objects.all().order_by("id"))
         locations = list(Location.objects.all().order_by("id"))
 
-        self.stdout.write("Seeding lost reports ...", ending=" ")
-        lost_created = self._seed_lost_reports(today, users, categories, colors, locations)
-        self.stdout.write(self.style.SUCCESS("ok"))
+        with translation.disabled():
+            self.stdout.write("Seeding lost reports ...", ending=" ")
+            lost_created = self._seed_lost_reports(today, users, categories, colors, locations)
+            self.stdout.write(self.style.SUCCESS("ok"))
 
-        self.stdout.write("Seeding found reports ...", ending=" ")
-        found_created = self._seed_found_reports(today, users, categories, colors, locations)
-        self.stdout.write(self.style.SUCCESS("ok"))
+            self.stdout.write("Seeding found reports ...", ending=" ")
+            found_created = self._seed_found_reports(today, users, categories, colors, locations)
+            self.stdout.write(self.style.SUCCESS("ok"))
 
-        found_reports = list(FoundReport.objects.all().order_by("id"))
+            found_reports = list(FoundReport.objects.all().order_by("id"))
 
-        self.stdout.write("Seeding stored items ...", ending=" ")
-        items_created = self._seed_stored_items(found_reports, categories, colors)
-        self.stdout.write(self.style.SUCCESS("ok"))
+            self.stdout.write("Seeding stored items ...", ending=" ")
+            items_created = self._seed_stored_items(found_reports, categories, colors)
+            self.stdout.write(self.style.SUCCESS("ok"))
 
         self.stdout.write(self.style.SUCCESS(
             "seed_demo finished. Created in this run: lost=%d found=%d items=%d. Totals:"
@@ -184,25 +210,45 @@ class Command(BaseCommand):
 
     def _seed_locations(self):
         created = 0
-        for building, areas in BUILDINGS.items():
-            for area in areas:
-                _, was_created = Location.objects.get_or_create(building=building, area=area)
+        for building_uz, (building_ru, building_en, areas) in BUILDINGS.items():
+            for area_uz, area_ru, area_en in areas:
+                location, was_created = Location.objects.get_or_create(
+                    building_uz=building_uz, area_uz=area_uz,
+                    defaults={
+                        "building_en": building_en, "building_ru": building_ru,
+                        "area_en": area_en, "area_ru": area_ru,
+                    },
+                )
+                if not was_created:
+                    Location.objects.filter(pk=location.pk).update(
+                        building_en=building_en, building_ru=building_ru,
+                        area_en=area_en, area_ru=area_ru,
+                    )
                 created += was_created
         return created
 
     def _seed_categories(self):
         created = 0
-        for name, emoji, retention in CATEGORIES:
+        for name_uz, name_ru, name_en, emoji, retention in CATEGORIES:
             _, was_created = Category.objects.get_or_create(
-                name=name, defaults={"emoji": emoji, "retention_days": retention}
+                name_uz=name_uz,
+                defaults={"name_ru": name_ru, "name_en": name_en,
+                          "emoji": emoji, "retention_days": retention},
+            )
+            Category.objects.filter(name_uz=name_uz).update(
+                name_ru=name_ru, name_en=name_en, emoji=emoji, retention_days=retention,
             )
             created += was_created
         return created
 
     def _seed_colors(self):
         created = 0
-        for name in COLORS:
-            _, was_created = Color.objects.get_or_create(name=name)
+        for name_uz, name_ru, name_en in COLORS:
+            _, was_created = Color.objects.get_or_create(
+                name_uz=name_uz,
+                defaults={"name_ru": name_ru, "name_en": name_en},
+            )
+            Color.objects.filter(name_uz=name_uz).update(name_ru=name_ru, name_en=name_en)
             created += was_created
         return created
 
@@ -213,6 +259,22 @@ class Command(BaseCommand):
                 username=username,
                 defaults={"first_name": name.split()[0], "last_name": name.split()[1], "is_staff": True},
             )
+            created += was_created
+
+        # Office superuser for /admin (credentials come from the environment,
+        # never from this repo). Existing password is left untouched.
+        import os
+
+        username = os.environ.get("SEED_ADMIN_USERNAME", "").strip()
+        password = os.environ.get("SEED_ADMIN_PASSWORD", "")
+        if username and password:
+            user, was_created = User.objects.get_or_create(
+                username=username,
+                defaults={"is_staff": True, "is_superuser": True},
+            )
+            if was_created:
+                user.set_password(password)
+                user.save()
             created += was_created
         return created
 
@@ -238,7 +300,7 @@ class Command(BaseCommand):
         for number in range(40):
             category = categories[number % len(categories)]
             reporter = random.choice(users)
-            title = random.choice(TITLES[category.name])
+            title = random.choice(TITLES[category.name_uz])
             color = random.choice(colors)
             scene = random.choice(SCENES)
             brand = random.choice(BRANDS)
@@ -249,12 +311,13 @@ class Command(BaseCommand):
                 today, 59, lambda d,rid=reporter.id,t=title: (rid, t, d), used_keys
             )
             _, was_created = LostReport.objects.get_or_create(
-                reporter=reporter, category=category, title=title, date_lost=date_lost,
+                reporter=reporter, category=category, title=title,
                 defaults={
-                    "description": description_for(title, color.name, scene),
+                    "description": description_for(title, color.localized_name("en"), scene),
                     "color": color,
                     "brand_marks": brand_marks_for(brand, mark),
                     "location": location,
+                    "date_lost": date_lost,
                     "status": status,
                 },
             )
@@ -267,7 +330,7 @@ class Command(BaseCommand):
         for number in range(30):
             category = categories[number % len(categories)]
             reporter = random.choice(users)
-            title = random.choice(TITLES[category.name])
+            title = random.choice(TITLES[category.name_uz])
             color = random.choice(colors)
             scene = random.choice(SCENES)
             brand = random.choice(BRANDS)
@@ -280,11 +343,12 @@ class Command(BaseCommand):
                 today, 59, lambda d,rid=reporter.id,t=title: (rid, t, d), used_keys
             )
             _, was_created = FoundReport.objects.get_or_create(
-                reporter=reporter, category=category, title=title, date_found=date_found,
+                reporter=reporter, category=category, title=title,
                 defaults={
-                    "description": description_for(title, color.name, scene),
+                    "description": description_for(title, color.localized_name("en"), scene),
                     "color": color,
                     "location": location,
+                    "date_found": date_found,
                     "photo_file_id": "",
                     "custody": custody,
                     "finder_contact_allowed": finder_contact_allowed,
@@ -309,15 +373,16 @@ class Command(BaseCommand):
             category = categories[number % len(categories)]
             status = ITEM_STATUS_PLAN[number % len(ITEM_STATUS_PLAN)]
             found_report = linked_found_reports[number] if number < 18 else None
+            item_color = random.choice(colors)
             item, was_created = StoredItem.objects.get_or_create(
                 title=title, shelf_code=shelf_code,
                 defaults={
                     "found_report": found_report,
                     "category": category,
                     "description": description_for(
-                        title, random.choice(colors).name, random.choice(SCENES)
+                        title, item_color.localized_name("en"), random.choice(SCENES)
                     ),
-                    "color": random.choice(colors),
+                    "color": item_color,
                     "received_by": User.objects.get(username=STAFF_ACCOUNTS[number % 4][0]),
                     "status": status,
                 },
