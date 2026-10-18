@@ -1,7 +1,7 @@
 """Telegram bot service entrypoint (aiogram 3.x, long polling).
 
 Wires the process to the shared Django ORM via ``django.setup()``, registers
-the blocked-user middleware and the command router, then polls forever.
+the blocked-user middleware and all routers, then polls forever.
 """
 import asyncio
 import logging
@@ -23,7 +23,7 @@ from aiogram import Bot, Dispatcher  # noqa: E402
 from aiogram.client.default import DefaultBotProperties  # noqa: E402
 from aiogram.enums import ParseMode  # noqa: E402
 
-from bot.handlers import router  # noqa: E402
+from bot import browse, handlers, wizards  # noqa: E402
 from bot.middleware import BlockedUserMiddleware  # noqa: E402
 
 logger = logging.getLogger("bot")
@@ -52,6 +52,17 @@ async def idle_forever():
         await asyncio.sleep(HEARTBEAT_SECONDS)
 
 
+def build_dispatcher() -> Dispatcher:
+    dispatcher = Dispatcher()
+    dispatcher.message.outer_middleware(BlockedUserMiddleware())
+    dispatcher.callback_query.outer_middleware(BlockedUserMiddleware())
+    dispatcher.include_router(handlers.router)
+    dispatcher.include_router(wizards.router)
+    dispatcher.include_router(browse.router)
+    dispatcher.include_router(handlers.fallback_router)
+    return dispatcher
+
+
 async def bootstrap():
     if not settings.BOT_TOKEN:
         await idle_forever()
@@ -61,10 +72,7 @@ async def bootstrap():
         token=settings.BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dispatcher = Dispatcher()
-    dispatcher.message.outer_middleware(BlockedUserMiddleware())
-    dispatcher.callback_query.outer_middleware(BlockedUserMiddleware())
-    dispatcher.include_router(router)
+    dispatcher = build_dispatcher()
     logger.info("Starting long polling for @%s...", (await bot.get_me()).username)
     await run_polling(bot, dispatcher)
 
