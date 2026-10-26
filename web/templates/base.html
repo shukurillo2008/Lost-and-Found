@@ -1,0 +1,134 @@
+{% load i18n static %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'uz' }}" style="color-scheme: light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8f9fa">
+    <title>{% block title %}{% trans "Campus Lost and Found — Office" %}{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/tabler-icons/tabler-icons.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/office.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-light">
+<a href="#main-content" class="skip-link">{% trans "Skip to main content" %}</a>
+
+<div class="container-fluid px-0">
+    <div class="row g-0">
+        <!-- Sidebar: university seal + main navigation -->
+        <nav class="col-lg-auto sidebar d-flex flex-column pb-3">
+            <a class="lnf-brand d-flex align-items-center gap-2 px-3 py-4" href="{% url 'dashboard' %}">
+                <img class="brand-seal" src="{% static 'logo/logo_500x500.png' %}"
+                     alt="{% trans 'University seal' %}" width="46" height="46">
+                <span class="text-white lh-sm">
+                    <span class="d-block fw-bold">Campus Lost &amp; Found</span>
+                    <span class="d-block small brand-sub">{% trans "Office" %}</span>
+                </span>
+            </a>
+
+            <ul class="nav flex-column flex-grow-1">
+                <li class="nav-item">
+                    <a class="nav-link{% if request.path == '/' %} active{% endif %}"
+                       href="{% url 'dashboard' %}"{% if request.path == '/' %} aria-current="page"{% endif %}>
+                        <i class="ti ti-layout-dashboard" aria-hidden="true"></i> {% trans "Dashboard" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link{% if request.path == '/storage/receive/' %} active{% endif %}"
+                       href="{% url 'storage_receive' %}"{% if request.path == '/storage/receive/' %} aria-current="page"{% endif %}>
+                        <i class="ti ti-inbox" aria-hidden="true"></i> {% trans "Receive item" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link{% if request.path == '/storage/' or '/storage/items/' in request.path %} active{% endif %}"
+                       href="{% url 'storage_item_list' %}"{% if request.path == '/storage/' or '/storage/items/' in request.path %} aria-current="page"{% endif %}>
+                        <i class="ti ti-archive" aria-hidden="true"></i> {% trans "Storage inventory" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link{% if '/reports/' in request.path %} active{% endif %}"
+                       href="{% url 'reports_lost_list' %}"{% if request.path == '/reports/lost/' %} aria-current="page"{% endif %}>
+                        <i class="ti ti-flag" aria-hidden="true"></i> {% trans "Lost reports" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-sub{% if request.path == '/reports/matches/' %} active{% endif %}"
+                       href="{% url 'reports_match_review' %}"{% if request.path == '/reports/matches/' %} aria-current="page"{% endif %}>
+                        <i class="ti ti-puzzle" aria-hidden="true"></i> {% trans "Match review" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link{% if '/catalog/' in request.path %} active{% endif %}"
+                       href="{% url 'catalog_location_form' %}"{% if '/catalog/' in request.path %} aria-current="page"{% endif %}>
+                        <i class="ti ti-tags" aria-hidden="true"></i> {% trans "Reference data" %}
+                    </a>
+                </li>
+            </ul>
+
+            <div class="px-3 pt-3 sidebar-footer">
+                <form method="post" action="{% url 'logout_page' %}" class="d-grid">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-light btn-sm">
+                        <i class="ti ti-logout" aria-hidden="true"></i> {% trans "Log out" %}
+                    </button>
+                </form>
+            </div>
+        </nav>
+
+        <!-- Right column: top bar + content -->
+        <div class="col">
+            <header class="lnf-topbar bg-white px-4 py-2 d-flex justify-content-between align-items-center">
+                <h1 class="page-title h5 mb-0">{% block page_title %}{% endblock %}</h1>
+                <div class="d-flex align-items-center gap-3">
+                    {% if user.is_authenticated %}
+                        <span class="staff-chip">
+                            <span class="avatar-initials" aria-hidden="true">{{ user.username|first|upper }}</span>
+                            <span>
+                                <span class="visually-hidden">{% trans "Signed in as" %} </span>
+                                {{ user.get_full_name|default:user.username }}
+                            </span>
+                        </span>
+                    {% endif %}
+                    <!-- Language switching -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                                data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true"
+                                aria-label="{% trans 'Interface language' %}">
+                            <i class="ti ti-world" aria-hidden="true"></i> {{ LANGUAGE_CODE|upper }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% for lang_code, lang_name in LANGUAGES %}
+                            <li>
+                                <a class="dropdown-item{% if lang_code == LANGUAGE_CODE %} fw-bold{% endif %}"
+                                   href="{% url 'switch_language' lang_code %}"
+                                   {% if lang_code == LANGUAGE_CODE %}aria-current="true"{% endif %}>
+                                   {{ lang_name }}{% if lang_code == LANGUAGE_CODE %} <i class="ti ti-check" aria-hidden="true"></i><span class="visually-hidden">{% trans "current language" %}</span>{% endif %}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </header>
+
+            <main id="main-content" class="p-4">
+                <div aria-live="polite">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{% trans 'Dismiss message' %}"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                </div>
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+</div>
+<script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

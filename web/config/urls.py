@@ -1,12 +1,13 @@
 """config URL Configuration.
 
-Minimal skeleton for Milestone 1: only the Django admin is wired up.
-Project apps (catalog, reports, storage, matching, staff views) register
-their URLs in later milestones.
+Milestones 1-4 wired only the Django admin; Milestone 5 adds the office
+staff web interface (accounts, dashboard, storage, reports, catalog pages)
+implemented in the ``office`` app (all logic inside view functions).
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("", include("office.urls")),
 ]

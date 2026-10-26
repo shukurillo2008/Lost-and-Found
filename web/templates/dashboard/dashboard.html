@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Dashboard" %}{% endblock %}
+{% block page_title %}{% trans "Dashboard" %}{% endblock %}
+
+{% block content %}
+<h2 class="visually-hidden">{% trans "Key figures" %}</h2>
+
+<div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3 mb-4">
+    {% for m in metrics %}
+    <div class="col">
+        <div class="card metric-card h-100 position-relative">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                    <span class="metric-icon" aria-hidden="true"><i class="ti {{ m.icon }}"></i></span>
+                    <p class="metric-value mb-0">{{ m.value }}</p>
+                </div>
+                <p class="metric-label mb-0">
+                    <a class="stretched-link" href="{{ m.href }}">{{ m.label }}</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h3 class="h6 fw-semibold mb-3">{% trans "Items by category" %}</h3>
+                <div id="chartBoxByCategory" class="chart-box" data-empty="{% trans 'No data yet' %}">
+                    <canvas id="chartByCategory" role="img"
+                            aria-label="{% trans 'Doughnut chart: items in storage grouped by category' %}"></canvas>
+                </div>
+                <ul class="visually-hidden">
+                    {% for row in category_rows %}
+                    <li>{{ row.label }} — {{ row.value }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h3 class="h6 fw-semibold mb-3">{% trans "Top 10 reports by location" %}</h3>
+                <div id="chartBoxByLocation" class="chart-box" data-empty="{% trans 'No data yet' %}">
+                    <canvas id="chartByLocation" role="img"
+                            aria-label="{% trans 'Horizontal bar chart: top 10 report locations' %}"></canvas>
+                </div>
+                <ul class="visually-hidden">
+                    {% for row in location_rows %}
+                    <li>{{ row.label }} — {{ row.value }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ category_chart|json_script:"category-chart-data" }}
+{{ location_chart|json_script:"location-chart-data" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
+<script>
+(function () {
+    "use strict";
+    if (!window.Chart) return;
+
+    var NAVY = "#043675";
+    var LABEL_COLOR = "#46587a";
+    var PALETTE = [
+        "#043675", "#235a9c", "#4680b8", "#6ba0d3", "#9ec0e6",
+        "#c2d5ea", "#c9a86a", "#9c8560", "#334457"
+    ];
+
+    function readData(id) {
+        var el = document.getElementById(id);
+        if (!el) return { labels: [], values: [] };
+        try { return JSON.parse(el.textContent); } catch (e) { return { labels: [], values: [] }; }
+    }
+
+    function showEmpty(boxId) {
+        var box = document.getElementById(boxId);
+        if (!box) return;
+        box.textContent = "";
+        var note = document.createElement("p");
+        note.className = "text-muted small mb-0 h-100 d-flex align-items-center justify-content-center";
+        note.textContent = box.dataset.empty || "";
+        box.appendChild(note);
+    }
+
+    // Doughnut — items in storage grouped by category
+    var catCanvas = document.getElementById("chartByCategory");
+    var catData = catCanvas ? readData("category-chart-data") : { labels: [], values: [] };
+    if (catCanvas && catData.labels.length) {
+        new Chart(catCanvas, {
+            type: "doughnut",
+            data: {
+                labels: catData.labels,
+                datasets: [{
+                    data: catData.values,
+                    backgroundColor: PALETTE,
+                    borderColor: "#ffffff",
+                    borderWidth: 2,
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "62%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: { color: LABEL_COLOR, boxWidth: 12, padding: 14 }
+                    }
+                }
+            }
+        });
+    } else if (catCanvas) {
+        showEmpty("chartBoxByCategory");
+    }
+
+    // Horizontal bar — top 10 lost report locations
+    var locCanvas = document.getElementById("chartByLocation");
+    var locData = locCanvas ? readData("location-chart-data") : { labels: [], values: [] };
+    if (locCanvas && locData.labels.length) {
+        new Chart(locCanvas, {
+            type: "bar",
+            data: {
+                labels: locData.labels,
+                datasets: [{
+                    data: locData.values,
+                    backgroundColor: NAVY,
+                    borderRadius: 4,
+                    maxBarThickness: 18
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: LABEL_COLOR,
+                            callback: function (value) { return String(Math.round(value)); }
+                        },
+                        grid: { color: "rgba(70, 88, 122, 0.12)" },
+                        border: { display: false }
+                    },
+                    y: {
+                        ticks: { color: LABEL_COLOR },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    } else if (locCanvas) {
+        showEmpty("chartBoxByLocation");
+    }
+})();
+</script>
+{% endblock %}

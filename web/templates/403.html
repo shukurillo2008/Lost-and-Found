@@ -1,0 +1,17 @@
+{% extends "base_standalone.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Access denied" %}{% endblock %}
+
+{% block content %}
+<div class="auth-card text-center">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-5">
+            <img class="auth-seal mb-3" src="{% static 'logo/logo_500x500.png' %}"
+                 alt="{% trans 'University seal' %}" width="72" height="72">
+            <h1 class="h4 fw-bold mb-2">{% trans "Access denied" %}</h1>
+            <p class="text-muted mb-0">{% trans "You need office staff rights to open this page." %}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Item details" %}{% endblock %}
+{% block page_title %}{% trans "Item details" %}{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <!-- LEFT: photo + basic details -->
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="detail-photo-shell mb-3">
+                    {% if item.photo %}
+                        <img class="detail-photo" src="{{ item.photo.url }}" alt="{{ item.title }}" width="640" height="400">
+                    {% else %}
+                        <i class="ti ti-photo" aria-hidden="true"></i>
+                    {% endif %}
+                </div>
+
+                <h2 class="h5 fw-bold mb-2">{{ item.title }}</h2>
+                <p class="mb-3 d-flex flex-wrap gap-1">
+                    <span class="badge status-badge status-{{ item.status }}">{{ status_label }}</span>
+                    {% if is_expiring %}
+                        <span class="badge badge-expiring"><i class="ti ti-calendar-due" aria-hidden="true"></i> {% trans "Expiring within 7 days" %}</span>
+                    {% endif %}
+                    {% if is_expired %}
+                        <span class="badge badge-expired">{% trans "Retention expired" %}</span>
+                    {% endif %}
+                </p>
+
+                <dl class="detail-list mb-0">
+                    <dt>{% trans "Shelf code" %}</dt>
+                    <dd>{{ item.shelf_code }}</dd>
+                    <dt>{% trans "Category" %}</dt>
+                    <dd>{{ category_name }}</dd>
+                    <dt>{% trans "Color" %}</dt>
+                    <dd>{{ color_name }}</dd>
+                    <dt>{% trans "Received date" %}</dt>
+                    <dd>{{ item.received_at|date:"d.m.Y H:i" }}</dd>
+                    <dt>{% trans "Received by" %}</dt>
+                    <dd>{{ item.received_by.get_username }}</dd>
+                    <dt>{% trans "Retention until" %}</dt>
+                    <dd>{{ item.retention_until|date:"d.m.Y" }}</dd>
+                    {% if item.found_report %}
+                    <dt>{% trans "Found report" %}</dt>
+                    <dd>#{{ item.found_report_id }} · {{ found_report_title }}</dd>
+                    {% endif %}
+                </dl>
+
+                <h3 class="detail-section-label mt-4">{% trans "Description" %}</h3>
+                <p class="text-muted mb-0 lh-base">{{ item.description|linebreaksbr }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: status timeline + match suggestions -->
+    <div class="col-12 col-lg-7 d-flex flex-column gap-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="detail-section-label"><i class="ti ti-history" aria-hidden="true"></i> {% trans "Status history" %}</h2>
+                {% if timeline %}
+                <ol class="timeline">
+                    {% for row in timeline %}
+                    <li>
+                        <span class="timeline-dot" aria-hidden="true"></span>
+                        <div class="small text-muted">{{ row.created_at|date:"d.m.Y H:i" }} · {{ row.staff }}</div>
+                        <div class="mt-1 d-flex flex-wrap align-items-center gap-1">
+                            {% if row.from == row.to %}
+                                <span class="badge status-badge status-{{ row.new_status }}">{{ row.to }}</span>
+                            {% else %}
+                                <span class="badge status-badge status-{{ row.old_status }}">{{ row.from }}</span>
+                                <span><i class="ti ti-arrow-right" aria-hidden="true"></i>
+                                    <span class="visually-hidden">{% trans "Changed to" %}</span></span>
+                                <span class="badge status-badge status-{{ row.new_status }}">{{ row.to }}</span>
+                            {% endif %}
+                        </div>
+                        {% if row.note %}<p class="timeline-note small text-muted mb-0 mt-1">{{ row.note }}</p>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="text-muted small mb-0">{% trans "No status changes yet." %}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="detail-section-label"><i class="ti ti-puzzle" aria-hidden="true"></i> {% trans "Match suggestions" %}</h2>
+                {% if suggestions %}
+                <div class="d-flex flex-column gap-2">
+                    {% for s in suggestions %}
+                    <div class="match-row">
+                        <span class="badge match-score">{{ s.score }}% {% trans "match" %}</span>
+                        <div class="match-row-body">
+                            <div class="fw-semibold text-truncate">{{ s.report_title }}</div>
+                            <div class="small text-muted">{{ s.created_at|date:"d.m.Y" }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">{% trans "No suggestions yet." %}</p>
+                {% endif %}
+                <a class="match-review-link small d-inline-flex align-items-center gap-1 mt-3" href="{{ match_review_url }}">
+                    {% trans "Match review" %} <i class="ti ti-arrow-right" aria-hidden="true"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions: Return / Dispose / Transfer (requirement 4) -->
+<div class="card border-0 shadow-sm mt-3">
+    <div class="card-body p-3 d-flex flex-wrap align-items-center gap-2">
+        {% if item.status == 'in_storage' %}
+        <a class="btn btn-success" href="{% url 'storage_handover' item.pk %}">
+            <i class="ti ti-arrow-back-up" aria-hidden="true"></i> {% trans "Return" %}
+        </a>
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#disposeModal">
+            <i class="ti ti-trash" aria-hidden="true"></i> {% trans "Dispose" %}
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#transferModal">
+            <i class="ti ti-arrows-exchange" aria-hidden="true"></i> {% trans "Transfer" %}
+        </button>
+        {% else %}
+        <p class="small text-muted mb-0">{% trans "This item has already left storage." %}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Confirm disposal -->
+<div class="modal fade" id="disposeModal" tabindex="-1" aria-labelledby="disposeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h2 class="h6 modal-title fw-bold" id="disposeModalLabel">{% trans "Confirm disposal" %}</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">{% trans "Add a short note for the disposal record." %}</p>
+                <label class="form-label" for="disposeNote">{% trans "Note" %}</label>
+                <textarea class="form-control" id="disposeNote" name="note" rows="3" required></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="submit" name="action" value="dispose" class="btn btn-sm btn-danger">
+                    <i class="ti ti-trash" aria-hidden="true"></i> {% trans "Dispose" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Confirm transfer -->
+<div class="modal fade" id="transferModal" tabindex="-1" aria-labelledby="transferModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h2 class="h6 modal-title fw-bold" id="transferModalLabel">{% trans "Confirm transfer" %}</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">{% trans "Add a short note for the transfer record." %}</p>
+                <label class="form-label" for="transferNote">{% trans "Note" %}</label>
+                <textarea class="form-control" id="transferNote" name="note" rows="3" required></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="submit" name="action" value="transfer" class="btn btn-sm btn-secondary">
+                    <i class="ti ti-arrows-exchange" aria-hidden="true"></i> {% trans "Transfer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

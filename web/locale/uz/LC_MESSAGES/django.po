@@ -1,0 +1,331 @@
+# Uzbek translation for the office staff web interface.
+msgid ""
+msgstr ""
+"Project-Id-Version: campus-lost-and-found\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-18 12:00+0500\n"
+"PO-Revision-Date: 2026-10-18 12:00+0500\n"
+"Last-Translator: office\n"
+"Language: uz\n"
+"Language-Team: Uzbek\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Campus Lost and Found — Office"
+msgstr "Kampus Yo‘qotilgan va topilgan narsalar — Office"
+
+msgid "Office"
+msgstr "Bosh ishxona"
+
+msgid "Storage"
+msgstr "Ombor"
+
+msgid "Receive item"
+msgstr "Buyum qabul qilish"
+
+msgid "Items"
+msgstr "Buyumlar"
+
+msgid "Stored items"
+msgstr "Saqlanayotgan buyumlar"
+
+msgid "Reports"
+msgstr "Arizalar"
+
+msgid "Lost reports"
+msgstr "Yo‘qotilgan arizalar"
+
+msgid "Match review"
+msgstr "Mosliklarni ko‘rib chiqish"
+
+msgid "Catalog"
+msgstr "Katalog"
+
+msgid "Locations"
+msgstr "Joylashuvlar"
+
+msgid "Locations (buildings and areas)"
+msgstr "Joylashuvlar (binolar va qismlar)"
+
+msgid "Categories"
+msgstr "Toifalar"
+
+msgid "Categories (with retention days)"
+msgstr "Toifalar (saqlash muddati bilan)"
+
+msgid "Log out"
+msgstr "Chiqish"
+
+msgid "Sign in"
+msgstr "Kirish"
+
+msgid "Sign in to the office panel"
+msgstr "Bosh ishxona paneliga kirish"
+
+msgid "You are already signed in."
+msgstr "Siz allaqachon tizimga kirdingiz."
+
+msgid "Go to items"
+msgstr "Buyumlarga o‘tish"
+
+msgid "Username"
+msgstr "Login"
+
+msgid "Password"
+msgstr "Parol"
+
+msgid "Invalid username or password. Try again or contact the office administrator."
+msgstr "Login yoki parol noto‘g‘ri. Yana urinib ko‘ring yoki ofis administratoriga murojaat qiling."
+
+msgid "This account is not allowed to use the office panel."
+msgstr "Bu hisob bosh ishxona panelidan foydalanish uchun ruxsat etilmagan."
+
+msgid "Only office staff accounts can sign in here."
+msgstr "Bu yerga faqat xodimlar hisobi kirishi mumkin."
+
+msgid "Item"
+msgstr "Buyum"
+
+msgid "Handover act"
+msgstr "Topshirish akti"
+
+msgid "You have been logged out."
+msgstr "Tizimdan chiqdingiz."
+
+msgid "This page is being built (next mini milestone)."
+msgstr "Bu sahifa yangilanmoqda (keyingi mini milestone)."
+
+msgid "Skip to main content"
+msgstr "Asosiy kontentga o‘tish"
+
+msgid "Interface language"
+msgstr "Interfeys tili"
+
+msgid "current language"
+msgstr "joriy til"
+
+msgid "Dismiss message"
+msgstr "Xabarni yopish"
+
+msgid "e.g. office.aziza"
+msgstr "masalan: office.aziza"
+
+msgid "Dashboard"
+msgstr "Boshqaruv paneli"
+
+msgid "Storage inventory"
+msgstr "Saqlanayotgan buyumlar"
+
+msgid "Reference data"
+msgstr "Ma'lumotnomalar"
+
+msgid "Signed in as"
+msgstr "Tizimga kirgan foydalanuvchi"
+
+msgid "University seal"
+msgstr "Universitet gerbi"
+
+msgid "Items in storage"
+msgstr "Ombordagi buyumlar"
+
+msgid "Expiring within 7 days"
+msgstr "7 kun ichida muddati tugaydi"
+
+msgid "Open lost reports"
+msgstr "Ochiq yo‘qotilgan arizalar"
+
+msgid "Pending match suggestions"
+msgstr "Kutilayotgan moslik takliflari"
+
+msgid "Items returned this month"
+msgstr "Bu oyda qaytarilgan buyumlar"
+
+msgid "Items by category"
+msgstr "Buyumlar toifa bo‘yicha"
+
+msgid "Top 10 reports by location"
+msgstr "Joylashuv bo‘yicha eng ko‘p 10 ariza"
+
+msgid "No data yet"
+msgstr "Ma'lumot hali yo‘q"
+
+msgid "Key figures"
+msgstr "Asosiy ko‘rsatkichlar"
+
+msgid "Doughnut chart: items in storage grouped by category"
+msgstr "Donut diagramma: ombordagi buyumlar toifalar bo‘yicha"
+
+msgid "Horizontal bar chart: top 10 report locations"
+msgstr "Gorizontal diagramma: eng ko‘p arizalarga ega 10 ta joylashuv"
+
+msgid "Search items"
+msgstr "Buyumlarni qidirish"
+
+msgid "Status"
+msgstr "Holati"
+
+msgid "In storage"
+msgstr "Omborda"
+
+msgid "Returned"
+msgstr "Qaytarilgan"
+
+msgid "Disposed"
+msgstr "Utilizatsiya qilingan"
+
+msgid "Transferred"
+msgstr "Ko‘chirilgan"
+
+msgid "All statuses"
+msgstr "Barcha holatlar"
+
+msgid "Category"
+msgstr "Toifa"
+
+msgid "Color"
+msgstr "Rang"
+
+msgid "Shelf"
+msgstr "Polka"
+
+msgid "Received date"
+msgstr "Qabul qilingan sana"
+
+msgid "Retention until"
+msgstr "Saqlash muddati"
+
+msgid "All categories"
+msgstr "Barcha toifalar"
+
+msgid "All shelves"
+msgstr "Barcha polkalar"
+
+msgid "Any time"
+msgstr "Istalgan vaqt"
+
+msgid "Today"
+msgstr "Bugun"
+
+msgid "Last 7 days"
+msgstr "Oxirgi 7 kun"
+
+msgid "This month"
+msgstr "Bu oy"
+
+msgid "Apply"
+msgstr "Qo‘llash"
+
+msgid "Reset filters"
+msgstr "Filtrlarni tozalash"
+
+msgid "Stored items list"
+msgstr "Saqlanayotgan buyumlar ro‘yxati"
+
+msgid "Photo"
+msgstr "Rasm"
+
+msgid "Title"
+msgstr "Nomi"
+
+msgid "No items match the filters."
+msgstr "Filtrga mos buyum topilmadi."
+
+msgid "Table pages"
+msgstr "Jadval sahifalari"
+
+msgid "Previous page"
+msgstr "Oldingi sahifa"
+
+msgid "Next page"
+msgstr "Keyingi sahifa"
+
+msgid "Export monthly inventory (CSV)"
+msgstr "Oylik inventarni eksport qilish (CSV)"
+
+msgid "Access denied"
+msgstr "Ruxsat berilmagan"
+
+msgid "You need office staff rights to open this page."
+msgstr "Bu sahifani ochish uchun ishxona xodimi huquqi kerak."
+
+msgid "Item details"
+msgstr "Buyum ma‘lumotlari"
+
+msgid "Shelf code"
+msgstr "Polka kodi"
+
+msgid "Received by"
+msgstr "Qabul qilgan xodim"
+
+msgid "Description"
+msgstr "Tavsif"
+
+msgid "Found report"
+msgstr "Topilgan ariza"
+
+msgid "Status history"
+msgstr "Holatlar tarixi"
+
+msgid "No status changes yet."
+msgstr "Holat o‘zgarishlari hali yo‘q."
+
+msgid "Match suggestions"
+msgstr "Moslik takliflari"
+
+msgid "No suggestions yet."
+msgstr "Hozircha moslik taklifi yo‘q."
+
+msgid "match"
+msgstr "moslik"
+
+msgid "Return"
+msgstr "Qaytarish"
+
+msgid "Dispose"
+msgstr "Utilizatsiya qilish"
+
+msgid "Transfer"
+msgstr "Ko‘chirish"
+
+msgid "Confirm disposal"
+msgstr "Utilizatsiyani tasdiqlash"
+
+msgid "Confirm transfer"
+msgstr "Ko‘chirishni tasdiqlash"
+
+msgid "Add a short note for the disposal record."
+msgstr "Utilizatsiya jurnali uchun qisqacha izoh yozing."
+
+msgid "Add a short note for the transfer record."
+msgstr "Ko‘chirish jurnali uchun qisqacha izoh yozing."
+
+msgid "Note"
+msgstr "Izoh"
+
+msgid "Cancel"
+msgstr "Bekor qilish"
+
+msgid "Close"
+msgstr "Yopish"
+
+msgid "Only items in storage can be disposed or transferred."
+msgstr "Faqat ombordagi buyumlar utilizatsiya qilinadi yoki ko‘chiriladi."
+
+msgid "Note is required for this action."
+msgstr "Bu amal uchun izoh majburiy."
+
+msgid "Item marked as disposed."
+msgstr "Buyum utilizatsiya qilingan deb belgilandi."
+
+msgid "Item marked as transferred."
+msgstr "Buyum ko‘chirilgan deb belgilandi."
+
+msgid "Retention expired"
+msgstr "Saqlash muddati o‘tdi"
+
+msgid "This item has already left storage."
+msgstr "Bu buyum ombordan chiqib ketgan."
+
+msgid "Changed to"
+msgstr "Yangi holat"

@@ -1,0 +1,107 @@
+{% extends "base_standalone.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Sign in" %} — {% trans "Campus Lost and Found — Office" %}{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+{% if user.is_authenticated %}
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <div class="alert alert-success mb-3" role="alert">
+                <i class="ti ti-check" aria-hidden="true"></i> {% trans "You are already signed in." %}
+            </div>
+            <a class="btn btn-outline-primary w-100" href="{% url 'storage_item_list' %}">
+                <i class="ti ti-archive" aria-hidden="true"></i> {% trans "Go to items" %}
+            </a>
+        </div>
+    </div>
+{% else %}
+    <div class="card shadow-sm">
+        <div class="card-body p-4 p-sm-5">
+            <!-- Interface language: pinned to the card's top-right corner -->
+            <div class="login-lang dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true"
+                        aria-label="{% trans 'Interface language' %}">
+                    <i class="ti ti-world" aria-hidden="true"></i> {{ LANGUAGE_CODE|upper }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    {% for lang_code, lang_name in LANGUAGES %}
+                    <li>
+                        <a class="dropdown-item{% if lang_code == LANGUAGE_CODE %} fw-bold{% endif %}"
+                           href="{% url 'switch_language' lang_code %}"
+                           {% if lang_code == LANGUAGE_CODE %}aria-current="true"{% endif %}>
+                           {{ lang_name }}{% if lang_code == LANGUAGE_CODE %} <i class="ti ti-check" aria-hidden="true"></i><span class="visually-hidden">{% trans "current language" %}</span>{% endif %}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="text-center mb-4">
+                <img class="auth-seal mb-3" src="{% static 'logo/logo_500x500.png' %}"
+                     alt="{% trans 'University seal' %}" width="72" height="72">
+                <h1 class="h5 fw-semibold mb-1">{% trans "Sign in to the office panel" %}</h1>
+                <p class="text-muted small mb-0">{% trans "Campus Lost and Found — Office" %}</p>
+            </div>
+
+            {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            <form method="post" id="login-form">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="inputUsername" class="form-label">{% trans "Username" %}</label>
+                    <input type="text" class="form-control" id="inputUsername" name="username"
+                           autocomplete="username" autocapitalize="none"
+                           spellcheck="false" inputmode="text" required
+                           placeholder="{% trans 'e.g. office.aziza' %}"
+                           value="{{ request.POST.username|default:'' }}">
+                </div>
+                <div class="mb-4">
+                    <label for="inputPassword" class="form-label">{% trans "Password" %}</label>
+                    <input type="password" class="form-control" id="inputPassword" name="password"
+                           autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100" id="login-submit-btn">
+                    <span class="login-spinner spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                    <span class="login-label"><i class="ti ti-key" aria-hidden="true"></i> {% trans "Sign in" %}</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <p class="text-center text-muted small mt-3">
+        <i class="ti ti-shield-lock" aria-hidden="true"></i>
+        {% trans "Only office staff accounts can sign in here." %}
+    </p>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if not user.is_authenticated %}
+{# Server-side form: the button stays enabled until the request starts, then shows a spinner (no blocking of paste/copy). #}
+<script>
+    (function () {
+        var form = document.getElementById("login-form");
+        if (!form) return;
+        form.addEventListener("submit", function () {
+            var btn = document.getElementById("login-submit-btn");
+            var spinner = btn.querySelector(".login-spinner");
+            var label = btn.querySelector(".login-label");
+            if (btn.disabled) return;
+            btn.setAttribute("aria-busy", "true");
+            spinner.classList.remove("d-none");
+            label.classList.add("fw-semibold");
+            btn.disabled = true;
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Storage inventory" %}{% endblock %}
+{% block page_title %}{% trans "Storage inventory" %}{% endblock %}
+
+{% block content %}
+<!-- Toolbar: count + CSV export (requirement 8) -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <span class="text-muted small">{% trans "Items" %}: {{ total_count }}</span>
+    <a class="btn btn-outline-primary btn-sm" href="{{ export_url }}">
+        <i class="ti ti-download" aria-hidden="true"></i>
+        <span>{% trans "Export monthly inventory (CSV)" %}</span>
+    </a>
+</div>
+
+<!-- Filter bar (search + dropdowns + expiring checkbox) -->
+<form class="lnf-filterbar card border-0 shadow-sm mb-3" method="get" action="{% url 'storage_item_list' %}">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label visually-hidden" for="filterSearch">{% trans "Search items" %}</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="ti ti-search" aria-hidden="true"></i></span>
+                    <input type="search" class="form-control" id="filterSearch" name="q"
+                           value="{{ query }}" aria-label="{% trans 'Search items' %}"
+                           autocomplete="off" enterkeyhint="search">
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="filterStatus">{% trans "Status" %}</label>
+                <select class="form-select form-select-sm" id="filterStatus" name="status">
+                    <option value="in_storage" {% if status == 'in_storage' %}selected{% endif %}>{% trans "In storage" %}</option>
+                    <option value="returned" {% if status == 'returned' %}selected{% endif %}>{% trans "Returned" %}</option>
+                    <option value="disposed" {% if status == 'disposed' %}selected{% endif %}>{% trans "Disposed" %}</option>
+                    <option value="transferred" {% if status == 'transferred' %}selected{% endif %}>{% trans "Transferred" %}</option>
+                    <option value="all" {% if status == 'all' %}selected{% endif %}>{% trans "All statuses" %}</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="filterCategory">{% trans "Category" %}</label>
+                <select class="form-select form-select-sm" id="filterCategory" name="category">
+                    <option value="">{% trans "All categories" %}</option>
+                    {% for cat_pk, cat_name in category_choices %}
+                    <option value="{{ cat_pk }}" {% if selected_category == cat_pk|stringformat:"s" %}selected{% endif %}>{{ cat_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="filterShelf">{% trans "Shelf" %}</label>
+                <select class="form-select form-select-sm" id="filterShelf" name="shelf">
+                    <option value="">{% trans "All shelves" %}</option>
+                    {% for code in shelves %}
+                    <option value="{{ code }}" {% if selected_shelf == code %}selected{% endif %}>{{ code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="filterReceived">{% trans "Received date" %}</label>
+                <select class="form-select form-select-sm" id="filterReceived" name="received">
+                    <option value="" {% if not received %}selected{% endif %}>{% trans "Any time" %}</option>
+                    <option value="today" {% if received == 'today' %}selected{% endif %}>{% trans "Today" %}</option>
+                    <option value="week" {% if received == 'week' %}selected{% endif %}>{% trans "Last 7 days" %}</option>
+                    <option value="month" {% if received == 'month' %}selected{% endif %}>{% trans "This month" %}</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-auto d-flex align-items-end gap-2">
+                <div class="expiring-toggle">
+                    <input class="btn-check" type="checkbox" name="expiring" value="on" id="filterExpiring"
+                           {% if expiring_on %}checked{% endif %}>
+                    <label class="btn btn-sm btn-outline-secondary" for="filterExpiring">
+                        <i class="ti ti-calendar-due" aria-hidden="true"></i> {% trans "Expiring within 7 days" %}
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary flex-grow-0">{% trans "Apply" %}</button>
+            </div>
+        </div>
+        {% if has_filters %}
+        <a class="filter-reset small mt-2 d-inline-block" href="{% url 'storage_item_list' %}">
+            <i class="ti ti-x" aria-hidden="true"></i> {% trans "Reset filters" %}
+        </a>
+        {% endif %}
+    </div>
+</form>
+
+<!-- Inventory table -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive-lg">
+        <table class="items-table table table-hover align-middle mb-0">
+            <caption class="visually-hidden">{% trans "Stored items list" %}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{% trans "Photo" %}</th>
+                    <th scope="col">{% trans "Shelf" %}</th>
+                    <th scope="col">{% trans "Item" %}</th>
+                    <th scope="col">{% trans "Category" %}</th>
+                    <th scope="col">{% trans "Color" %}</th>
+                    <th scope="col">{% trans "Received date" %}</th>
+                    <th scope="col">{% trans "Retention until" %}</th>
+                    <th scope="col">{% trans "Status" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        {% if row.item.photo %}
+                            <img class="item-thumb" src="{{ row.item.photo.url }}" alt="" width="44" height="44" loading="lazy">
+                        {% else %}
+                            <span class="thumb-fallback" aria-hidden="true"><i class="ti ti-photo"></i></span>
+                        {% endif %}
+                    </td>
+                    <th scope="row" class="item-shelf">{{ row.item.shelf_code }}</th>
+                    <td>
+                        <a class="item-title" href="{% url 'storage_item_detail' row.item.pk %}">{{ row.item.title }}</a>
+                        <div class="item-desc small text-muted">{{ row.item.description|truncatechars:60 }}</div>
+                    </td>
+                    <td>{{ row.category_name }}</td>
+                    <td>{{ row.color_name }}</td>
+                    <td class="text-nowrap">{{ row.item.received_at|date:"d.m.Y" }}</td>
+                    <td class="text-nowrap">
+                        {{ row.item.retention_until|date:"d.m.Y" }}
+                        {% if row.expiring %}
+                            <span class="badge badge-expiring">
+                                <i class="ti ti-calendar-due" aria-hidden="true"></i> {% trans "Expiring within 7 days" %}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge status-badge status-{{ row.item.status }}">{{ row.status_label }}</span></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center py-5">
+                        <p class="text-muted mb-2">{% trans "No items match the filters." %}</p>
+                        {% if has_filters %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'storage_item_list' %}">
+                                <i class="ti ti-x" aria-hidden="true"></i> {% trans "Reset filters" %}
+                            </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3" aria-label="{% trans 'Table pages' %}">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?{{ qstring }}page={{ page_obj.previous_page_number }}" aria-label="{% trans 'Previous page' %}">
+                <i class="ti ti-chevron-left" aria-hidden="true"></i>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link"><i class="ti ti-chevron-left" aria-hidden="true"></i></span></li>
+        {% endif %}
+        {% for page_number in page_obj.paginator.page_range %}
+        <li class="page-item{% if page_number == page_obj.number %} active{% endif %}"{% if page_number == page_obj.number %} aria-current="page"{% endif %}>
+            <a class="page-link" href="?{{ qstring }}page={{ page_number }}">{{ page_number }}</a>
+        </li>
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?{{ qstring }}page={{ page_obj.next_page_number }}" aria-label="{% trans 'Next page' %}">
+                <i class="ti ti-chevron-right" aria-hidden="true"></i>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link"><i class="ti ti-chevron-right" aria-hidden="true"></i></span></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

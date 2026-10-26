@@ -1,0 +1,21 @@
+{% load i18n static %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'uz' }}" style="color-scheme: light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8f9fa">
+    <title>{% block title %}{% trans "Campus Lost and Found — Office" %}{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/tabler-icons/tabler-icons.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/office.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-light">
+<a href="#main-content" class="skip-link">{% trans "Skip to main content" %}</a>
+<main id="main-content" class="auth-shell">
+    {% block content %}{% endblock %}
+</main>
+<script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

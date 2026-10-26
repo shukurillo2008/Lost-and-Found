@@ -1,0 +1,331 @@
+# Russian translation for the office staff web interface.
+msgid ""
+msgstr ""
+"Project-Id-Version: campus-lost-and-found\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-18 12:00+0500\n"
+"PO-Revision-Date: 2026-10-18 12:00+0500\n"
+"Last-Translator: office\n"
+"Language: ru\n"
+"Language-Team: Russian\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Campus Lost and Found — Office"
+msgstr "Забытые и найденные вещи кампуса — Офис"
+
+msgid "Office"
+msgstr "Офис"
+
+msgid "Storage"
+msgstr "Склад"
+
+msgid "Receive item"
+msgstr "Принять вещь"
+
+msgid "Items"
+msgstr "Вещи"
+
+msgid "Stored items"
+msgstr "Вещи на складе"
+
+msgid "Reports"
+msgstr "Заявки"
+
+msgid "Lost reports"
+msgstr "Заявки о потерях"
+
+msgid "Match review"
+msgstr "Проверка совпадений"
+
+msgid "Catalog"
+msgstr "Каталог"
+
+msgid "Locations"
+msgstr "Локации"
+
+msgid "Locations (buildings and areas)"
+msgstr "Локации (здания и зоны)"
+
+msgid "Categories"
+msgstr "Категории"
+
+msgid "Categories (with retention days)"
+msgstr "Категории (со сроками хранения)"
+
+msgid "Log out"
+msgstr "Выйти"
+
+msgid "Sign in"
+msgstr "Войти"
+
+msgid "Sign in to the office panel"
+msgstr "Вход в панель офиса"
+
+msgid "You are already signed in."
+msgstr "Вы уже вошли в систему."
+
+msgid "Go to items"
+msgstr "Перейти к вещам"
+
+msgid "Username"
+msgstr "Логин"
+
+msgid "Password"
+msgstr "Пароль"
+
+msgid "Invalid username or password. Try again or contact the office administrator."
+msgstr "Неверный логин или пароль. Попробуйте снова или обратитесь к администратору офиса."
+
+msgid "This account is not allowed to use the office panel."
+msgstr "Этой учётной записи нельзя пользоваться панелью офиса."
+
+msgid "Only office staff accounts can sign in here."
+msgstr "Войти здесь могут только сотрудники офиса."
+
+msgid "Item"
+msgstr "Вещь"
+
+msgid "Handover act"
+msgstr "Акт передачи"
+
+msgid "You have been logged out."
+msgstr "Вы вышли из системы."
+
+msgid "This page is being built (next mini milestone)."
+msgstr "Эта страница ещё строится (следующий мини-этап)."
+
+msgid "Skip to main content"
+msgstr "К основному содержимому"
+
+msgid "Interface language"
+msgstr "Язык интерфейса"
+
+msgid "current language"
+msgstr "текущий язык"
+
+msgid "Dismiss message"
+msgstr "Закрыть сообщение"
+
+msgid "e.g. office.aziza"
+msgstr "например: office.aziza"
+
+msgid "Dashboard"
+msgstr "Панель управления"
+
+msgid "Storage inventory"
+msgstr "Инвентарь склада"
+
+msgid "Reference data"
+msgstr "Справочники"
+
+msgid "Signed in as"
+msgstr "Вы вошли как"
+
+msgid "University seal"
+msgstr "Герб университета"
+
+msgid "Items in storage"
+msgstr "Вещи на хранении"
+
+msgid "Expiring within 7 days"
+msgstr "Истекает в течение 7 дней"
+
+msgid "Open lost reports"
+msgstr "Открытые заявки о потерях"
+
+msgid "Pending match suggestions"
+msgstr "Совпадения на проверке"
+
+msgid "Items returned this month"
+msgstr "Возвращено вещей за месяц"
+
+msgid "Items by category"
+msgstr "Вещи по категориям"
+
+msgid "Top 10 reports by location"
+msgstr "Топ-10 заявок по локациям"
+
+msgid "No data yet"
+msgstr "Данных пока нет"
+
+msgid "Key figures"
+msgstr "Ключевые показатели"
+
+msgid "Doughnut chart: items in storage grouped by category"
+msgstr "Кольцевая диаграмма: вещи на хранении по категориям"
+
+msgid "Horizontal bar chart: top 10 report locations"
+msgstr "Горизонтальная диаграмма: топ-10 локаций по заявкам"
+
+msgid "Search items"
+msgstr "Поиск вещей"
+
+msgid "Status"
+msgstr "Статус"
+
+msgid "In storage"
+msgstr "На складе"
+
+msgid "Returned"
+msgstr "Возвращено"
+
+msgid "Disposed"
+msgstr "Утилизировано"
+
+msgid "Transferred"
+msgstr "Перемещено"
+
+msgid "All statuses"
+msgstr "Все статусы"
+
+msgid "Category"
+msgstr "Категория"
+
+msgid "Color"
+msgstr "Цвет"
+
+msgid "Shelf"
+msgstr "Полка"
+
+msgid "Received date"
+msgstr "Дата приёма"
+
+msgid "Retention until"
+msgstr "Срок хранения (до)"
+
+msgid "All categories"
+msgstr "Все категории"
+
+msgid "All shelves"
+msgstr "Все стеллажи"
+
+msgid "Any time"
+msgstr "За всё время"
+
+msgid "Today"
+msgstr "Сегодня"
+
+msgid "Last 7 days"
+msgstr "За последние 7 дней"
+
+msgid "This month"
+msgstr "Текущий месяц"
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "Reset filters"
+msgstr "Сбросить фильтры"
+
+msgid "Stored items list"
+msgstr "Список вещей на складе"
+
+msgid "Photo"
+msgstr "Фото"
+
+msgid "Title"
+msgstr "Название"
+
+msgid "No items match the filters."
+msgstr "По фильтрам ничего не найдено."
+
+msgid "Table pages"
+msgstr "Страницы таблицы"
+
+msgid "Previous page"
+msgstr "Предыдущая страница"
+
+msgid "Next page"
+msgstr "Следующая страница"
+
+msgid "Export monthly inventory (CSV)"
+msgstr "Экспорт месячной инвентаризации (CSV)"
+
+msgid "Access denied"
+msgstr "Доступ запрещён"
+
+msgid "You need office staff rights to open this page."
+msgstr "Для открытия этой страницы нужны права сотрудника офиса."
+
+msgid "Item details"
+msgstr "Детали вещи"
+
+msgid "Shelf code"
+msgstr "Код полки"
+
+msgid "Received by"
+msgstr "Принял"
+
+msgid "Description"
+msgstr "Описание"
+
+msgid "Found report"
+msgstr "Заявка о находке"
+
+msgid "Status history"
+msgstr "История статусов"
+
+msgid "No status changes yet."
+msgstr "Изменений статуса пока нет."
+
+msgid "Match suggestions"
+msgstr "Предложения совпадений"
+
+msgid "No suggestions yet."
+msgstr "Пока нет предложений совпадений."
+
+msgid "match"
+msgstr "совпадение"
+
+msgid "Return"
+msgstr "Возврат"
+
+msgid "Dispose"
+msgstr "Утилизировать"
+
+msgid "Transfer"
+msgstr "Переместить"
+
+msgid "Confirm disposal"
+msgstr "Подтвердить утилизацию"
+
+msgid "Confirm transfer"
+msgstr "Подтвердить перемещение"
+
+msgid "Add a short note for the disposal record."
+msgstr "Добавьте короткую заметку для записи об утилизации."
+
+msgid "Add a short note for the transfer record."
+msgstr "Добавьте короткую заметку для записи о перемещении."
+
+msgid "Note"
+msgstr "Заметка"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Close"
+msgstr "Закрыть"
+
+msgid "Only items in storage can be disposed or transferred."
+msgstr "Утилизировать или переместить можно только вещи на складе."
+
+msgid "Note is required for this action."
+msgstr "Для этого действия требуется заметка."
+
+msgid "Item marked as disposed."
+msgstr "Вещь помечена как утилизированная."
+
+msgid "Item marked as transferred."
+msgstr "Вещь помечена как перемещённая."
+
+msgid "Retention expired"
+msgstr "Срок хранения истёк"
+
+msgid "This item has already left storage."
+msgstr "Эта вещь уже выбыла со склада."
+
+msgid "Changed to"
+msgstr "Новое состояние"
