@@ -314,6 +314,21 @@ button:focus-visible,
 .status-transferred { background: #e3f1f6; color: #1a5a73; }
 .badge-expiring { background: #fdf1dc; color: #7a4b12; font-weight: 600; }
 
+/* ---- Storage receive form ----------------------------------------------------- */
+.lnf-hint { font-size: 0.8rem; color: #5a6b8c; }
+
+.report-dl dt {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #5a6b8c;
+    padding-top: 0.35rem;
+}
+.report-dl dd { margin-bottom: 0.35rem; }
+
+.report-titles .lang-tag { font-size: 0.68rem; min-width: 4.6rem; }
+
 /* ---- Storage item detail ----------------------------------------------------- */
 .detail-section-label {
     display: flex;

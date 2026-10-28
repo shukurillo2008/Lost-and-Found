@@ -246,6 +246,108 @@ msgstr "Экспорт месячной инвентаризации (CSV)"
 msgid "Access denied"
 msgstr "Доступ запрещён"
 
+msgid "Link a found report (optional)"
+msgstr "Привязать заявку о находке (необязательно)"
+
+msgid "Not linked — staff entry"
+msgstr "Без привязки — ввод сотрудником"
+
+msgid "Choosing a report prefills the fields below."
+msgstr "Выбор заявки автоматически заполнит поля ниже."
+
+msgid "Choose a category."
+msgstr "Выберите категорию."
+
+msgid "Choose a color"
+msgstr "Выберите цвет"
+
+msgid "The next free code is suggested and can be changed."
+msgstr "Предложен следующий свободный код, его можно изменить."
+
+msgid "Photo (JPG/PNG, up to 5 MB)"
+msgstr "Фото (JPG/PNG, до 5 МБ)"
+
+msgid "Save & register"
+msgstr "Сохранить и зарегистрировать"
+
+msgid "Item registered."
+msgstr "Вещь зарегистрирована."
+
+msgid "Title is required."
+msgstr "Укажите название."
+
+msgid "Title is too long (max 120 characters)."
+msgstr "Название слишком длинное (максимум 120 символов)."
+
+msgid "Description is required."
+msgstr "Добавьте описание."
+
+msgid "Shelf code is required."
+msgstr "Укажите код полки."
+
+msgid "Shelf code is too long (max 16 characters)."
+msgstr "Код полки слишком длинный (максимум 16 символов)."
+
+msgid "Shelf code is already occupied."
+msgstr "Код полки уже занят."
+
+msgid "Photo must be at most 5 MB."
+msgstr "Фото должно быть не больше 5 МБ."
+
+msgid "That found report is already linked to a stored item."
+msgstr "Эта заявка о находке уже привязана к предмету."
+
+msgid "Search reports"
+msgstr "Поиск заявок"
+
+msgid "Nothing found"
+msgstr "Ничего не найдено"
+
+msgid "Clear"
+msgstr "Очистить"
+
+msgid "Report details"
+msgstr "Данные заявки"
+
+msgid "Location"
+msgstr "Место"
+
+msgid "Date found"
+msgstr "Дата находки"
+
+msgid "Custody"
+msgstr "Местонахождение"
+
+msgid "Handed to office"
+msgstr "Передан в офис"
+
+msgid "Kept by finder"
+msgstr "У нашедшего"
+
+msgid "Reporter"
+msgstr "Нашедший"
+
+msgid "Submitted"
+msgstr "Отправлена"
+
+msgid "Open"
+msgstr "Открыта"
+
+msgid "Registered"
+msgstr "Зарегистрирована"
+
+msgid "Cancelled"
+msgstr "Отменена"
+
+msgid "Finder allows contact"
+msgstr "Нашедший разрешает связь"
+
+msgid "Report photo"
+msgstr "Фото заявки"
+
+msgid "Couldn't copy the report photo — upload it manually."
+msgstr "Не удалось скопировать фото заявки — загрузите вручную."
+
 msgid "You need office staff rights to open this page."
 msgstr "Для открытия этой страницы нужны права сотрудника офиса."
 

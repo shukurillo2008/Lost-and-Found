@@ -1,9 +1,282 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
+
 {% block title %}{% trans "Receive item" %}{% endblock %}
 {% block page_title %}{% trans "Receive item" %}{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'vendor/select2/css/select2.min.css' %}">
+<link rel="stylesheet" href="{% static 'vendor/select2/css/select2-bootstrap-5-theme.min.css' %}">
+{% endblock %}
+
 {% block content %}
-<!-- Mini milestone TODO: receive form (found report or desk walk-in) -->
-<div class="alert alert-info">{% trans "This page is being built (next mini milestone)." %}</div>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <!-- Left: the receive form -->
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="inputCategory">{% trans "Category" %} <span class="text-danger">*</span></label>
+                            <select class="form-select" id="inputCategory" name="category" required>
+                                <option value="">{% trans "Choose a category." %}</option>
+                                {% for cat_pk, cat_name in category_choices %}
+                                <option value="{{ cat_pk }}"
+                                        {% if submitted.category == cat_pk|stringformat:"s" %}selected{% endif %}>{{ cat_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="inputColor">{% trans "Color" %} <span class="text-danger">*</span></label>
+                            <select class="form-select" id="inputColor" name="color" required>
+                                <option value="">{% trans "Choose a color" %}</option>
+                                {% for clr_pk, clr_name in color_choices %}
+                                <option value="{{ clr_pk }}"
+                                        {% if submitted.color == clr_pk|stringformat:"s" %}selected{% endif %}>{{ clr_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="inputTitle">{% trans "Title" %} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="inputTitle" name="title"
+                                   maxlength="120" required
+                                   value="{{ submitted.title|default:'' }}"
+                                   autocomplete="off">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="inputDescription">{% trans "Description" %} <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="inputDescription" name="description" rows="4" required>{{ submitted.description|default:'' }}</textarea>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="inputShelf">{% trans "Shelf code" %} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="inputShelf" name="shelf_code"
+                                   maxlength="16" required
+                                   value="{{ submitted.shelf_code|default:suggested_shelf }}">
+                            <p class="lnf-hint mb-0 mt-1">
+                                <i class="ti ti-info-circle" aria-hidden="true"></i>
+                                {% trans "The next free code is suggested and can be changed." %}
+                            </p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="inputPhoto">{% trans "Photo (JPG/PNG, up to 5 MB)" %}</label>
+                            <input type="file" class="form-control" id="inputPhoto" name="photo" accept="image/png,image/jpeg">
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            <i class="ti ti-device-floppy" aria-hidden="true"></i> {% trans "Save & register" %}
+                        </button>
+                        <a class="btn btn-outline-secondary" href="{% url 'storage_item_list' %}">
+                            {% trans "Cancel" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: found report linking (searchable) -->
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <label class="form-label fw-semibold" for="inputFoundReport">
+                        <i class="ti ti-link" aria-hidden="true"></i>
+                        {% trans "Link a found report (optional)" %}
+                    </label>
+                    <select id="inputFoundReport" name="found_report"
+                            aria-describedby="foundReportHint"
+                            data-url-template="{% url 'storage_receive_prefill' 12345 %}"
+                            data-search-placeholder="{% trans 'Search reports' %}"
+                            data-no-results="{% trans 'Nothing found' %}">
+                        <option value="">{% trans "Not linked — staff entry" %}</option>
+                        {% for report_pk, report_label in found_report_choices %}
+                        <option value="{{ report_pk }}"
+                                {% if submitted.found_report == report_pk|stringformat:"s" %}selected{% endif %}>{{ report_label }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="lnf-hint mb-0 mt-2" id="foundReportHint">
+                        <i class="ti ti-info-circle" aria-hidden="true"></i>
+                        {% trans "Choosing a report prefills the fields below." %}
+                    </p>
+                    <button type="button" id="clearReport" class="btn btn-sm btn-outline-secondary mt-2 d-none">
+                        <i class="ti ti-x" aria-hidden="true"></i> {% trans "Clear" %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Full details of the selected found report -->
+            <div class="card border-0 shadow-sm mt-3 d-none" id="reportDetailsCard">
+                <div class="card-body p-4">
+                    <h2 class="h6 text-uppercase text-secondary fw-bold mb-3">
+                        <i class="ti ti-report" aria-hidden="true"></i> {% trans "Report details" %}
+                    </h2>
+                    <img id="reportPhoto" class="img-fluid rounded border mb-3 d-none"
+                         alt="" data-alt="{% trans 'Report photo' %}">
+                    <div class="report-titles mb-3">
+                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                            <span data-field="title_uz"></span></p>
+                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">English</span>
+                            <span data-field="title_en"></span></p>
+                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">Русский</span>
+                            <span data-field="title_ru"></span></p>
+                    </div>
+                    <dl class="row report-dl mb-0">
+                        <dt class="col-5">{% trans "Category" %}</dt>
+                        <dd class="col-7" data-field="category_name"></dd>
+                        <dt class="col-5">{% trans "Color" %}</dt>
+                        <dd class="col-7" data-field="color_name"></dd>
+                        <dt class="col-5">{% trans "Location" %}</dt>
+                        <dd class="col-7" data-field="location_name"></dd>
+                        <dt class="col-5">{% trans "Date found" %}</dt>
+                        <dd class="col-7" data-field="date_found"></dd>
+                        <dt class="col-5">{% trans "Custody" %}</dt>
+                        <dd class="col-7" data-field="custody"></dd>
+                        <dt class="col-5">{% trans "Reporter" %}</dt>
+                        <dd class="col-7" data-field="reporter"></dd>
+                        <dt class="col-5">{% trans "Submitted" %}</dt>
+                        <dd class="col-7" data-field="created_at"></dd>
+                        <dt class="col-5">{% trans "Status" %}</dt>
+                        <dd class="col-7" data-field="status_label"></dd>
+                        <dt class="col-12">{% trans "Description" %}</dt>
+                        <dd class="col-12" data-field="description"></dd>
+                        <dd class="col-12 mt-1 d-none" data-field-row="finder_contact_allowed">
+                            <span class="badge text-bg-success">
+                                <i class="ti ti-phone-call" aria-hidden="true"></i>
+                                {% trans "Finder allows contact" %}
+                            </span>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'vendor/jquery/jquery-3.7.1.min.js' %}"></script>
+<script src="{% static 'vendor/select2/js/select2.min.js' %}"></script>
+<script>
+    (function () {
+        var $select = jQuery("#inputFoundReport");
+        if (!$select.length) return;
+        var select = $select[0];
+        var card = document.getElementById("reportDetailsCard");
+        var clearBtn = document.getElementById("clearReport");
+        var filled = {
+            title: document.getElementById("inputTitle"),
+            description: document.getElementById("inputDescription"),
+            category: document.getElementById("inputCategory"),
+            color: document.getElementById("inputColor")
+        };
+
+        function setFields(data) {
+            filled.title.value = data.title;
+            filled.description.value = data.description;
+            if (data.category) filled.category.value = String(data.category);
+            if (data.color) filled.color.value = String(data.color);
+        }
+
+        function renderCard(data) {
+            var photo = document.getElementById("reportPhoto");
+            if (photo) {
+                if (data.photo_url) {
+                    photo.src = data.photo_url;
+                    photo.alt = photo.dataset.alt || "";
+                    photo.classList.remove("d-none");
+                } else {
+                    photo.removeAttribute("src");
+                    photo.classList.add("d-none");
+                }
+            }
+            card.querySelectorAll("[data-field]").forEach(function (el) {
+                var value = data[el.dataset.field];
+                el.textContent = (value === null || value === undefined || value === "") ? "—" : value;
+            });
+            var contactRow = card.querySelector("[data-field-row='finder_contact_allowed']");
+            if (contactRow) {
+                contactRow.classList.toggle("d-none", !data.finder_contact_allowed);
+            }
+            card.classList.remove("d-none");
+            clearBtn.classList.remove("d-none");
+            if (typeof card.scrollIntoView === "function") {
+                card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+
+        function hideCard() {
+            card.classList.add("d-none");
+            clearBtn.classList.add("d-none");
+            var photo = document.getElementById("reportPhoto");
+            if (photo) {
+                photo.removeAttribute("src");
+                photo.classList.add("d-none");
+            }
+            card.querySelectorAll("[data-field]").forEach(function (el) {
+                el.textContent = "";
+            });
+            var contactRow = card.querySelector("[data-field-row='finder_contact_allowed']");
+            if (contactRow) contactRow.classList.add("d-none");
+        }
+
+        function loadReport(reportId) {
+            if (!reportId) {
+                hideCard();
+                return;
+            }
+            var url = select.dataset.urlTemplate.replace("12345", reportId);
+            fetch(url).then(function (response) {
+                return response.ok ? response.json() : null;
+            }).then(function (data) {
+                if (!data) return;
+                setFields(data);
+                renderCard(data);
+            });
+        }
+
+        // Select2 fires its change event through jQuery's trigger(), which does
+        // NOT reach native addEventListener listeners — bind through jQuery.
+        $select.on("change", function () {
+            loadReport($select.val());
+        });
+
+        clearBtn.addEventListener("click", function () {
+            $select.val("").trigger("change");
+        });
+
+        try {
+            $select.select2({
+                theme: "bootstrap-5",
+                width: "100%",
+                language: {
+                    noResults: function () { return select.dataset.noResults || ""; }
+                }
+            });
+            var sel2 = $select.data("select2");
+            if (sel2 && sel2.$dropdown) {
+                var searchField = sel2.$dropdown.find(".select2-search__field");
+                if (searchField.length) {
+                    searchField.attr("placeholder", select.dataset.searchPlaceholder || "");
+                }
+            }
+        } catch (initError) {
+            /* Select2 failed to initialize: the native select stays usable. */
+        }
+
+        // After a POST validation error the report stays selected: restore the card.
+        if ($select.val()) {
+            loadReport($select.val());
+        }
+    })();
+</script>
 {% endblock %}

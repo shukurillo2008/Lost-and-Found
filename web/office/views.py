@@ -5,26 +5,32 @@ Pages are filled in one mini-milestone at a time; every page has a stub
 upfront so the URL config resolves from day one.
 """
 import csv
+import json
 import re
+import urllib.request
 from datetime import timedelta
 from functools import wraps
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
+from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import check_for_language, gettext as _
+from django.views.static import serve as static_serve
 
-from catalog.models import Category, Location
+from catalog.models import Category, Color, Location
 from matching.models import Handover, MatchSuggestion
-from reports.models import LostReport
+from reports.models import FoundReport, LostReport
 from storage.models import ItemStatusLog, StoredItem
 
 
@@ -217,6 +223,316 @@ def _status_labels() -> dict:
 @staff_required
 def storage_receive(request: HttpRequest) -> HttpResponse:
     return render(request, "storage/receive_form.html", {})
+
+
+_MAX_PHOTO_BYTES = 5 * 1024 * 1024
+
+
+def _next_free_shelf_code() -> str:
+    """Prepopulate the next free shelf code: highest row+serial onward.
+
+    Codes follow ``ROW-NN`` (e.g. A1-01); the suggestion continues the
+    highest serial in the lexicographically greatest occupied row, and
+    skips codes that already exist.
+    """
+    best = None
+    for code in StoredItem.objects.values_list("shelf_code", flat=True):
+        matched = re.fullmatch(r"([A-Z]+\d*)-(\d+)", code)
+        if matched:
+            candidate = (matched.group(1), int(matched.group(2)))
+            if best is None or candidate > best:
+                best = candidate
+    if best is None:
+        return "A1-01"
+
+    row, number = best
+    next_number = number + 1 if number < 99 else 1
+    proposed = f"{row}-{next_number:02d}"
+    while StoredItem.objects.filter(shelf_code=proposed).exists() and next_number < 99:
+        next_number += 1
+        proposed = f"{row}-{next_number:02d}"
+    return proposed
+
+
+def _found_report_choices(lang: str) -> list:
+    """Found reports that can still be shelved: physically handed to the
+    office and not yet linked to a stored item."""
+    reports = (
+        FoundReport.objects.filter(custody="handed_to_office", stored_item__isnull=True)
+        .select_related("reporter")
+        .order_by("-created_at")[:100]
+    )
+    return [
+        (
+            report.pk,
+            "#{0} · {1} ({2:%d.%m.%Y})".format(
+                report.pk, report.title_in(lang), report.date_found
+            ),
+        )
+        for report in reports
+    ]
+
+
+def _fetch_telegram_file(file_id: str) -> bytes | None:
+    """Download a Telegram file by ``file_id`` through the Bot API.
+
+    Report photos live on Telegram's servers; only their ``file_id``
+    reference is stored locally. Returns the raw bytes, or None when the
+    token/file is unavailable (the caller decides the fallback).
+    """
+    token = settings.BOT_TOKEN
+    if not token or not file_id:
+        return None
+    try:
+        info_request = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/getFile",
+            data=json.dumps({"file_id": file_id}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(info_request, timeout=10) as response:
+            info = json.loads(response.read().decode())
+        file_path = (info.get("result") or {}).get("file_path")
+        if not file_path:
+            return None
+        with urllib.request.urlopen(
+            f"https://api.telegram.org/file/bot{token}/{file_path}", timeout=15
+        ) as response:
+            return response.read()
+    except (OSError, ValueError):
+        return None
+
+
+def _report_photo_bytes(kind: str, report_id: int) -> bytes | None:
+    """Photo bytes for a lost/found report: cached under MEDIA_ROOT after
+    the first Bot API download, so later loads never touch Telegram."""
+    cache_path = Path(settings.MEDIA_ROOT) / "report_photos" / f"{kind}-{report_id}.jpg"
+    if cache_path.exists():
+        return cache_path.read_bytes()
+    model = {"found": FoundReport, "lost": LostReport}.get(kind)
+    if model is None:
+        return None
+    file_id = (
+        model.objects.filter(pk=report_id)
+        .values_list("photo_file_id", flat=True)
+        .first()
+    )
+    if not file_id:
+        return None
+    content = _fetch_telegram_file(file_id)
+    if content is None:
+        return None
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(content)
+    return content
+
+
+@staff_required
+def report_photo(request: HttpRequest, kind: str, report_id: int) -> HttpResponse:
+    """Bridge that shows report photos (stored on Telegram by file_id).
+
+    Serves the cached copy after the first download; staff-only like the
+    rest of the office UI.
+    """
+    content = _report_photo_bytes(kind, report_id)
+    if content is None:
+        raise Http404
+    return HttpResponse(content, content_type="image/jpeg")
+
+
+@staff_required
+def storage_receive(request: HttpRequest) -> HttpResponse:
+    """Requirement 3 — Receive item fast-entry form.
+
+    Optional found-report link (which prefills title/description/category/
+    color through ``storage_receive_prefill``), category, color, title,
+    description, photo upload and a prepopulated *next free shelf code*
+    suggestion. "Save & register" creates the StoredItem + the first
+    ItemStatusLog entry; linking an open found report marks it registered.
+    All parsing/validation lives here (no forms.py); on validation errors
+    the form re-renders with the error list and submitted values.
+    """
+    lang = _ui_lang(request)
+
+    base_context = {
+        "found_report_choices": _found_report_choices(lang),
+        "category_choices": [
+            (cat.pk, cat.localized_name(lang))
+            for cat in Category.objects.order_by("name_uz")
+        ],
+        "color_choices": [
+            (clr.pk, clr.localized_name(lang))
+            for clr in Color.objects.order_by("name_uz")
+        ],
+    }
+
+    if request.method == "POST":
+        title = (request.POST.get("title") or "").strip()
+        description = (request.POST.get("description") or "").strip()
+        shelf_code = (request.POST.get("shelf_code") or "").strip()
+        category_id = request.POST.get("category") or ""
+        color_id = request.POST.get("color") or ""
+        found_report_id = request.POST.get("found_report") or ""
+        photo = request.FILES.get("photo")
+
+        errors = []
+        if not title:
+            errors.append(_("Title is required."))
+        elif len(title) > 120:
+            errors.append(_("Title is too long (max 120 characters)."))
+        if not description:
+            errors.append(_("Description is required."))
+        if not shelf_code:
+            errors.append(_("Shelf code is required."))
+        elif len(shelf_code) > 16:
+            errors.append(_("Shelf code is too long (max 16 characters)."))
+
+        category = None
+        if category_id.isdigit() and (found := Category.objects.filter(pk=int(category_id)).first()):
+            category = found
+        if category is None:
+            errors.append(_("Choose a category."))
+
+        color = None
+        if color_id.isdigit() and (found := Color.objects.filter(pk=int(color_id)).first()):
+            color = found
+        if color is None:
+            errors.append(_("Choose a color."))
+
+        if photo and photo.size > _MAX_PHOTO_BYTES:
+            errors.append(_("Photo must be at most 5 MB."))
+
+        if shelf_code and StoredItem.objects.filter(
+            status="in_storage", shelf_code=shelf_code
+        ).exists():
+            errors.append(_("Shelf code is already occupied."))
+
+        found_report = None
+        if found_report_id.isdigit():
+            found_report = FoundReport.objects.filter(pk=int(found_report_id)).first()
+            if found_report and StoredItem.objects.filter(found_report_id=found_report.pk).exists():
+                errors.append(_("That found report is already linked to a stored item."))
+                found_report = None
+
+        if errors:
+            return render(request, "storage/receive_form.html", {
+                **base_context,
+                "suggested_shelf": _next_free_shelf_code(),
+                "error": " ".join(errors),
+                "submitted": {
+                    "title": title,
+                    "description": description,
+                    "shelf_code": shelf_code,
+                    "category": category_id,
+                    "color": color_id,
+                    "found_report": found_report_id,
+                },
+            })
+
+        item = StoredItem(
+            title=title,
+            description=description,
+            category=category,
+            color=color,
+            shelf_code=shelf_code,
+            received_by=request.user,
+        )
+        if found_report:
+            item.found_report = found_report
+        if photo:
+            item.photo = photo
+        item.save()  # auto_now_add received_at + retention from the category
+
+        ItemStatusLog.objects.create(
+            item=item,
+            old_status="in_storage",
+            new_status="in_storage",
+            staff=request.user,
+            note=_("Item registered."),
+        )
+        # Auto-copy: a linked report's photo (Telegram file_id) becomes the
+        # item's own stored photo; on failure staff can still upload manually.
+        if found_report and found_report.photo_file_id and not item.photo:
+            report_bytes = _fetch_telegram_file(found_report.photo_file_id)
+            if report_bytes:
+                item.photo.save(
+                    f"from-report-{found_report.pk}.jpg",
+                    ContentFile(report_bytes),
+                    save=False,
+                )
+                item.save()
+            else:
+                messages.warning(
+                    request,
+                    _("Couldn't copy the report photo — upload it manually."),
+                )
+        if found_report and found_report.status == "open":
+            found_report.status = "registered"
+            found_report.save()
+
+        messages.success(request, _("Item registered."))
+        return redirect("storage_item_detail", item_id=item.pk)
+
+    return render(request, "storage/receive_form.html", {
+        **base_context,
+        "suggested_shelf": _next_free_shelf_code(),
+    })
+
+
+@staff_required
+def storage_receive_prefill(request: HttpRequest, report_id: int) -> JsonResponse:
+    """JSON payload for the receive page's found-report selector.
+
+    Consumed by the page's vanilla JS on selection change: fills the
+    title/description/category/color inputs AND populates the report
+    details card (no forms.py, no JS frameworks — a plain GET endpoint).
+    """
+    lang = _ui_lang(request)
+    report = get_object_or_404(
+        FoundReport.objects.select_related("category", "color", "location", "reporter"),
+        pk=report_id,
+    )
+    found_status_labels = {
+        "open": _("Open"),
+        "registered": _("Registered"),
+        "returned": _("Returned"),
+        "cancelled": _("Cancelled"),
+    }
+    return JsonResponse({
+        "title": report.title_in(lang),
+        "description": report.description,
+        "category": report.category_id,
+        "color": report.color_id,
+        # The title is kept in three language streams — show all of them
+        "title_uz": report.title_in("uz"),
+        "title_en": report.title_in("en"),
+        "title_ru": report.title_in("ru"),
+        # Display-only extras for the report details card
+        "category_name": report.category.localized_name(lang),
+        "color_name": report.color.localized_name(lang) if report.color else "",
+        "location_name": report.location.display(lang),
+        "date_found": report.date_found.strftime("%d.%m.%Y"),
+        "custody": _(report.get_custody_display()),
+        "status_label": found_status_labels.get(report.status, report.status),
+        "reporter": report.reporter.display_name,
+        "finder_contact_allowed": report.finder_contact_allowed,
+        "created_at": timezone.localtime(report.created_at).strftime("%d.%m.%Y %H:%M"),
+        "photo_url": (
+            reverse("report_photo", kwargs={"kind": "found", "report_id": report.pk})
+            if report.photo_file_id
+            else ""
+        ),
+    })
+
+
+@staff_required
+def media_file(request: HttpRequest, file_path: str) -> HttpResponse:
+    """Serve user-uploaded media (item photos) to staff only.
+
+    Whitenoise serves hashed STATIC assets only; media lives outside
+    STATIC_ROOT, so the office panel fetches it through this gated view
+    (django's serve() guards against path traversal).
+    """
+    return static_serve(request, file_path, document_root=str(settings.MEDIA_ROOT))
 
 
 @staff_required

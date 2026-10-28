@@ -246,6 +246,108 @@ msgstr "Oylik inventarni eksport qilish (CSV)"
 msgid "Access denied"
 msgstr "Ruxsat berilmagan"
 
+msgid "Link a found report (optional)"
+msgstr "Topilgan arizani bog‘lash (majburiy emas)"
+
+msgid "Not linked — staff entry"
+msgstr "Bog‘lanmagan — xodim kiritadi"
+
+msgid "Choosing a report prefills the fields below."
+msgstr "Arizani tanlash quyidagi maydonlarni avtomatik to‘ldiradi."
+
+msgid "Choose a category."
+msgstr "Toifani tanlang."
+
+msgid "Choose a color"
+msgstr "Rangni tanlang"
+
+msgid "The next free code is suggested and can be changed."
+msgstr "Keyingi bo‘sh kod taklif etilgan, o‘zgartirish mumkin."
+
+msgid "Photo (JPG/PNG, up to 5 MB)"
+msgstr "Rasm (JPG/PNG, 5 MB gacha)"
+
+msgid "Save & register"
+msgstr "Saqlash va ro‘yxatga olish"
+
+msgid "Item registered."
+msgstr "Buyum ro‘yxatga olindi."
+
+msgid "Title is required."
+msgstr "Sarlavha majburiy."
+
+msgid "Title is too long (max 120 characters)."
+msgstr "Sarlavha juda uzun (eng ko‘pi 120 belgi)."
+
+msgid "Description is required."
+msgstr "Tavsif majburiy."
+
+msgid "Shelf code is required."
+msgstr "Polka kodi majburiy."
+
+msgid "Shelf code is too long (max 16 characters)."
+msgstr "Polka kodi juda uzun (eng ko‘pi 16 belgi)."
+
+msgid "Shelf code is already occupied."
+msgstr "Bu polka kodi band."
+
+msgid "Photo must be at most 5 MB."
+msgstr "Rasm hajmi 5 MB dan oshmasligi kerak."
+
+msgid "That found report is already linked to a stored item."
+msgstr "Bu topilgan ariza allaqachon buyumga bog‘langan."
+
+msgid "Search reports"
+msgstr "Arizalarni qidirish"
+
+msgid "Nothing found"
+msgstr "Hech narsa topilmadi"
+
+msgid "Clear"
+msgstr "Tozalash"
+
+msgid "Report details"
+msgstr "Ariza ma‛lumotlari"
+
+msgid "Location"
+msgstr "Joylashuv"
+
+msgid "Date found"
+msgstr "Topilgan sana"
+
+msgid "Custody"
+msgstr "Buyum qayerda"
+
+msgid "Handed to office"
+msgstr "Ofisga topshirilgan"
+
+msgid "Kept by finder"
+msgstr "Topuvchida"
+
+msgid "Reporter"
+msgstr "Topuvchi"
+
+msgid "Submitted"
+msgstr "Yuborilgan"
+
+msgid "Open"
+msgstr "Ochiq"
+
+msgid "Registered"
+msgstr "Ro‘yxatga olingan"
+
+msgid "Cancelled"
+msgstr "Bekor qilingan"
+
+msgid "Finder allows contact"
+msgstr "Topuvchi aloqaga rozi"
+
+msgid "Report photo"
+msgstr "Ariza rasmi"
+
+msgid "Couldn't copy the report photo — upload it manually."
+msgstr "Ariza rasmini nusxalash mumkin bo‘lmadi — qo‘lda yuklang."
+
 msgid "You need office staff rights to open this page."
 msgstr "Bu sahifani ochish uchun ishxona xodimi huquqi kerak."
 
