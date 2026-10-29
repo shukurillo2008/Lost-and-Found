@@ -68,6 +68,26 @@ class ReportInternals(models.Model):
         value = getattr(self, f"title_{lang}", "") or ""
         return value or self.title
 
+    def _sync_translated_description(self) -> None:
+        """Sync the reporter-language description stream from ``description``
+        and auto-translate the other two (blank) streams."""
+        src = (self.reporter.language if self.reporter_id else "en") or "en"
+        if src not in ("uz", "ru", "en"):
+            src = "en"
+        fields_map = {
+            lang: (getattr(self, f"description_{lang}", "") or "")
+            for lang in ("uz", "en", "ru")
+        }
+        fields_map[src] = self.description
+        auto_fill(fields_map, source_lang=src)
+        for lang, value in fields_map.items():
+            setattr(self, f"description_{lang}", value)
+
+    def description_in(self, lang: str) -> str:
+        """Description shown in ``lang``; falls back to the original entry."""
+        value = getattr(self, f"description_{lang}", "") or ""
+        return value or self.description
+
 
 class LostReport(ReportInternals):
     """A user's claim that they lost an item."""
@@ -83,6 +103,9 @@ class LostReport(ReportInternals):
     title_en = models.CharField(max_length=120, blank=True)
     title_ru = models.CharField(max_length=120, blank=True)
     description = models.TextField()
+    description_uz = models.TextField(blank=True)
+    description_en = models.TextField(blank=True)
+    description_ru = models.TextField(blank=True)
     color = models.ForeignKey(
         "catalog.Color", on_delete=models.PROTECT, related_name="lost_reports"
     )
@@ -107,6 +130,7 @@ class LostReport(ReportInternals):
 
     def save(self, *args, **kwargs):
         self._sync_translated_title()
+        self._sync_translated_description()
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -127,6 +151,9 @@ class FoundReport(ReportInternals):
     title_en = models.CharField(max_length=120, blank=True)
     title_ru = models.CharField(max_length=120, blank=True)
     description = models.TextField()
+    description_uz = models.TextField(blank=True)
+    description_en = models.TextField(blank=True)
+    description_ru = models.TextField(blank=True)
     color = models.ForeignKey(
         "catalog.Color", on_delete=models.PROTECT, related_name="found_reports"
     )
@@ -154,6 +181,7 @@ class FoundReport(ReportInternals):
 
     def save(self, *args, **kwargs):
         self._sync_translated_title()
+        self._sync_translated_description()
         super().save(*args, **kwargs)
 
     def __str__(self):

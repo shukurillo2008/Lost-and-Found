@@ -19,6 +19,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -506,6 +507,9 @@ def storage_receive_prefill(request: HttpRequest, report_id: int) -> JsonRespons
         "title_uz": report.title_in("uz"),
         "title_en": report.title_in("en"),
         "title_ru": report.title_in("ru"),
+        "description_uz": report.description_in("uz"),
+        "description_en": report.description_in("en"),
+        "description_ru": report.description_in("ru"),
         # Display-only extras for the report details card
         "category_name": report.category.localized_name(lang),
         "color_name": report.color.localized_name(lang) if report.color else "",
@@ -763,7 +767,115 @@ def storage_item_detail(request: HttpRequest, item_id: int) -> HttpResponse:
 
 @staff_required
 def storage_handover(request: HttpRequest, item_id: int) -> HttpResponse:
-    return render(request, "storage/handover_form.html", {"item_id": item_id})
+    """Requirement 6 — the handover act (return an item to its owner).
+
+    A return must record WHO took the item, so the form captures the
+    receiver's full name plus the last 4 digits of their ID document
+    (kept only in the confidential Handover record — never on the item,
+    its log or the reports). A successful save flips the item to
+    ``returned``, writes the audit entry and closes the linked found
+    report — and the matched lost claim, when one was confirmed.
+    """
+    item = get_object_or_404(
+        StoredItem.objects.select_related(
+            "category", "color", "received_by",
+            "found_report", "found_report__reporter",
+        ),
+        pk=item_id,
+    )
+    if item.status != "in_storage" or hasattr(item, "handover"):
+        messages.warning(request, _("Only items in storage can be handed over."))
+        return redirect("storage_item_detail", item_id=item.pk)
+
+    # An identity claim confirmed in match review pre-resolves the receiver
+    # (claimant of the lost report); otherwise the finder's record is used.
+    claim = (
+        item.match_suggestions.select_related("lost_report__reporter")
+        .filter(status="confirmed")
+        .order_by("-reviewed_at", "-created_at")
+        .first()
+    )
+    claim_report = claim.lost_report if claim else None
+    if claim_report is not None:
+        receiver_name = claim_report.reporter.display_name
+    elif item.found_report:
+        receiver_name = item.found_report.reporter.display_name
+    else:
+        receiver_name = ""
+    id_last4 = ""
+    note = ""
+
+    if request.method == "POST":
+        receiver_name = (request.POST.get("receiver_name") or "").strip()
+        id_last4 = (request.POST.get("id_last4") or "").strip()
+        note = (request.POST.get("note") or "").strip()
+        if not receiver_name:
+            messages.error(request, _("Receiver name is required."))
+        elif not re.fullmatch(r"[0-9]{4}", id_last4):
+            messages.error(request, _(
+                "Enter the last 4 digits of the receiver's ID document."
+            ))
+        else:
+            with transaction.atomic():
+                Handover.objects.create(
+                    stored_item=item,
+                    lost_report=claim_report,
+                    receiver_name=receiver_name,
+                    receiver_id_last4=id_last4,
+                    staff=request.user,
+                    note=note,
+                )
+                item.status = "returned"
+                item.save()
+                ItemStatusLog.objects.create(
+                    item=item,
+                    old_status="in_storage",
+                    new_status="returned",
+                    staff=request.user,
+                    note=note or _("Item handed to the receiver."),
+                )
+                if item.found_report and item.found_report.status == "registered":
+                    linked = item.found_report
+                    linked.status = "returned"
+                    linked.save()
+                if claim_report and claim_report.status in ("open", "matched"):
+                    claim_report.status = "returned"
+                    claim_report.save()
+            messages.success(request, _("Item returned to the receiver."))
+            return redirect("storage_item_detail", item_id=item.pk)
+
+    lang = _ui_lang(request)
+    labels = _status_labels()
+    linked = item.found_report
+    report_streams = (
+        {
+            "uz": linked.title_in("uz"),
+            "en": linked.title_in("en"),
+            "ru": linked.title_in("ru"),
+        }
+        if linked
+        else {}
+    )
+    if claim_report is not None:
+        reporter_name = claim_report.reporter.display_name
+    elif linked:
+        reporter_name = linked.reporter.display_name
+    else:
+        reporter_name = ""
+
+    return render(request, "storage/handover_form.html", {
+        "item": item,
+        "status_label": labels.get(item.status, item.status),
+        "category_name": item.category.localized_name(lang),
+        "color_name": item.color.localized_name(lang),
+        "report_streams": report_streams,
+        "reporter_name": reporter_name,
+        "has_prefill": bool(receiver_name),
+        "receiver_name": receiver_name,
+        "id_last4": id_last4,
+        "note": note,
+        "back_url": reverse("storage_item_detail", args=[item.pk]),
+    })
 
 
 # ---------------------------------------------------------------------------

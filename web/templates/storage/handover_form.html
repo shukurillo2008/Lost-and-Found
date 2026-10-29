@@ -1,9 +1,119 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Handover" %} #{{ item_id }}{% endblock %}
-{% block page_title %}{% trans "Handover act" %} #{{ item_id }}{% endblock %}
+{% block title %}{% trans "Handover act" %} · {{ item.shelf_code }}{% endblock %}
+{% block page_title %}{% trans "Handover act" %}{% endblock %}
 
 {% block content %}
-<!-- Mini milestone TODO: handover act (owner check, phone, signature note) -->
-<div class="alert alert-info">{% trans "This page is being built (next mini milestone)." %}</div>
+<div class="row g-3">
+    <!-- LEFT: handover form (receiver identity) -->
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h6 text-uppercase text-secondary fw-bold mb-3">
+                    <i class="ti ti-user-check" aria-hidden="true"></i> {% trans "Receiver identity" %}
+                </h2>
+                {% if has_prefill %}
+                <p class="small lnf-hint mb-3">
+                    <i class="ti ti-info-circle" aria-hidden="true"></i> {% trans "Prefilled from the linked report." %}
+                </p>
+                {% endif %}
+                <form method="post" novalidate class="mb-0">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="receiverName">
+                            {% trans "Receiver full name" %}
+                            <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="receiverName" name="receiver_name"
+                               value="{{ receiver_name }}" maxlength="128" required
+                               autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="idLast4">
+                            {% trans "ID last 4 digits" %}
+                            <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="idLast4" name="id_last4"
+                               value="{{ id_last4 }}" maxlength="4" inputmode="numeric"
+                               pattern="[0-9]{4}" required autocomplete="off"
+                               aria-describedby="idLast4Hint">
+                        <small class="lnf-hint" id="idLast4Hint">
+                            {% trans "Recorded only in the handover act, never shown elsewhere." %}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="handoverNote">{% trans "Note" %}</label>
+                        <textarea class="form-control" id="handoverNote" name="note" rows="3">{{ note }}</textarea>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="ti ti-arrow-back-up" aria-hidden="true"></i> {% trans "Hand over item" %}
+                        </button>
+                        <a class="btn btn-outline-secondary" href="{{ back_url }}">
+                            <i class="ti ti-x" aria-hidden="true"></i> {% trans "Cancel" %}
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: the item being returned -->
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h6 text-uppercase text-secondary fw-bold mb-3">
+                    <i class="ti ti-archive" aria-hidden="true"></i> {% trans "Item to return" %}
+                </h2>
+                <div class="detail-photo-shell mb-3">
+                    {% if item.photo %}
+                        <img class="detail-photo" src="{{ item.photo.url }}" alt="{{ item.title }}" width="640" height="400">
+                    {% else %}
+                        <i class="ti ti-photo" aria-hidden="true"></i>
+                    {% endif %}
+                </div>
+                <h3 class="h5 fw-bold mb-2">{{ item.title }}</h3>
+                <p class="mb-3">
+                    <span class="badge status-badge status-{{ item.status }}">{{ status_label }}</span>
+                </p>
+
+                <dl class="row report-dl mb-0">
+                    <dt class="col-5">{% trans "Shelf code" %}</dt>
+                    <dd class="col-7">{{ item.shelf_code }}</dd>
+                    <dt class="col-5">{% trans "Category" %}</dt>
+                    <dd class="col-7">{{ category_name }}</dd>
+                    <dt class="col-5">{% trans "Color" %}</dt>
+                    <dd class="col-7">{{ color_name }}</dd>
+                    <dt class="col-5">{% trans "Received date" %}</dt>
+                    <dd class="col-7">{{ item.received_at|date:"d.m.Y H:i" }}</dd>
+                    <dt class="col-5">{% trans "Retention until" %}</dt>
+                    <dd class="col-7">{{ item.retention_until|date:"d.m.Y" }}</dd>
+                    {% if reporter_name %}
+                    <dt class="col-5">{% trans "Reporter" %}</dt>
+                    <dd class="col-7">{{ reporter_name }}</dd>
+                    {% endif %}
+                    {% if item.found_report %}
+                    <dt class="col-5">{% trans "Found report" %}</dt>
+                    <dd class="col-7">#{{ item.found_report_id }}</dd>
+                    {% endif %}
+                </dl>
+
+                <h3 class="detail-section-label mt-3">{% trans "Description" %}</h3>
+                <p class="text-muted small mb-0 lh-base">{{ item.description|linebreaksbr }}</p>
+
+                {% if report_streams %}
+                <!-- Linked report title in all three language streams -->
+                <div class="report-titles mt-3">
+                    {% for code, stream in report_streams.items %}
+                    <p class="mb-1">
+                        <span class="badge text-bg-light border lang-tag">{% if code == "uz" %}O‛zbekcha{% elif code == "ru" %}Русский{% else %}English{% endif %}</span>
+                        {{ stream }}
+                    </p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

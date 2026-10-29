@@ -431,3 +431,39 @@ msgstr "Bu buyum ombordan chiqib ketgan."
 
 msgid "Changed to"
 msgstr "Yangi holat"
+
+msgid "Receiver identity"
+msgstr "Qabul qiluvchi shaxsi"
+
+msgid "Receiver full name"
+msgstr "Qabul qiluvchining to‘liq ismi"
+
+msgid "ID last 4 digits"
+msgstr "Hujjat raqamining oxirgi 4 belgisi"
+
+msgid "Recorded only in the handover act, never shown elsewhere."
+msgstr "Faqat dalolatnomada saqlanadi, boshqa joyda ko‘rinmaydi."
+
+msgid "Hand over item"
+msgstr "Buyumni topshirish"
+
+msgid "Item to return"
+msgstr "Qaytariladigan buyum"
+
+msgid "Prefilled from the linked report."
+msgstr "Bog‘langan ariza asosida to‘ldirildi."
+
+msgid "Receiver name is required."
+msgstr "Qabul qiluvchi ismi kiritilishi shart."
+
+msgid "Enter the last 4 digits of the receiver's ID document."
+msgstr "Qabul qiluvchi hujjati raqamining oxirgi 4 belgisini kiriting."
+
+msgid "Item returned to the receiver."
+msgstr "Buyum qabul qiluvchiga topshirildi."
+
+msgid "Only items in storage can be handed over."
+msgstr "Faqat ombordagi buyumlar topshiriladi."
+
+msgid "Item handed to the receiver."
+msgstr "Buyum qabul qiluvchiga berildi."

@@ -431,3 +431,39 @@ msgstr "Эта вещь уже выбыла со склада."
 
 msgid "Changed to"
 msgstr "Новое состояние"
+
+msgid "Receiver identity"
+msgstr "Личность получателя"
+
+msgid "Receiver full name"
+msgstr "Полное имя получателя"
+
+msgid "ID last 4 digits"
+msgstr "Последние 4 цифры документа"
+
+msgid "Recorded only in the handover act, never shown elsewhere."
+msgstr "Сохраняется только в акте передачи, нигде больше не показывается."
+
+msgid "Hand over item"
+msgstr "Передать предмет"
+
+msgid "Item to return"
+msgstr "Возвращаемый предмет"
+
+msgid "Prefilled from the linked report."
+msgstr "Заполнено на основе связанной заявки."
+
+msgid "Receiver name is required."
+msgstr "Укажите имя получателя."
+
+msgid "Enter the last 4 digits of the receiver's ID document."
+msgstr "Введите последние 4 цифры документа получателя."
+
+msgid "Item returned to the receiver."
+msgstr "Предмет передан получателю."
+
+msgid "Only items in storage can be handed over."
+msgstr "Передать можно только предметы со склада."
+
+msgid "Item handed to the receiver."
+msgstr "Предмет выдан получателю."

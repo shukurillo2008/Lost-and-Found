@@ -148,6 +148,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # using an online translator. When disabled, staff fills translations by hand.
 AUTO_TRANSLATE = env("AUTO_TRANSLATE", "True").lower() in ("1", "true", "yes")
 
+# MyMemory contact email: raises the free daily quota from 5,000 to 50,000
+# characters. Optional — when unset, translation runs anonymously.
+MYMEMORY_EMAIL = env("MYMEMORY_EMAIL")
+
 # Bot / office integration values (used by bot and worker services).
 BOT_TOKEN = env("BOT_TOKEN")
 OFFICE_GROUP_ID = env("OFFICE_GROUP_ID")

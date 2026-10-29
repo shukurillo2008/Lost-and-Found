@@ -47,13 +47,18 @@ def translate(text: str, target_lang: str, source_lang: str = "uz") -> str:
     if not text or not _auto_translate_enabled():
         return ""
     try:
+        from django.conf import settings
+
         from deep_translator import MyMemoryTranslator
 
-        result = MyMemoryTranslator(
+        # A contact email raises the MyMemory free quota to 50,000 chars/day.
+        email = (getattr(settings, "MYMEMORY_EMAIL", "") or "").strip()
+        translator = MyMemoryTranslator(
             source=PROVIDER_LANGS[source_lang.lower()],
             target=PROVIDER_LANGS[target_lang.lower()],
-        ).translate(text)
-        return _clean(result)
+            **({"email": email} if email else {}),
+        )
+        return _clean(translator.translate(text))
     except Exception:
         return ""
 

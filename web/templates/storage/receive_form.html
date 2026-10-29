@@ -147,8 +147,16 @@
                         <dd class="col-7" data-field="created_at"></dd>
                         <dt class="col-5">{% trans "Status" %}</dt>
                         <dd class="col-7" data-field="status_label"></dd>
-                        <dt class="col-12">{% trans "Description" %}</dt>
-                        <dd class="col-12" data-field="description"></dd>
+                    </dl>
+                    <!-- Description in all three language streams -->
+                    <div class="report-titles mt-3">
+                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                            <span data-field="description_uz"></span></p>
+                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">English</span>
+                            <span data-field="description_en"></span></p>
+                        <p class="mb-0"><span class="badge text-bg-light border lang-tag">Русский</span>
+                            <span data-field="description_ru"></span></p>
+                    </div>
                         <dd class="col-12 mt-1 d-none" data-field-row="finder_contact_allowed">
                             <span class="badge text-bg-success">
                                 <i class="ti ti-phone-call" aria-hidden="true"></i>
