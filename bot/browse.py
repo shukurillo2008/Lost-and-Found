@@ -10,6 +10,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from bot_app.models import TelegramUser
+from matching.engine import score_breakdown, score_from_breakdown
 from matching.models import MatchSuggestion
 from reports.models import FoundReport, LostReport
 
@@ -101,12 +102,14 @@ async def _create_user_suggestion(call: CallbackQuery, django_user: TelegramUser
         return
 
     def create():
+        found = FoundReport.objects.select_related("location").get(pk=found_id)
+        breakdown = {"source": "user_button", **score_breakdown(lost, found)}
         return MatchSuggestion.objects.create(
             lost_report=lost,
             found_report_id=found_id,
             created_by="user",
-            score=0,
-            score_breakdown={"source": "user_button"},
+            score=score_from_breakdown(breakdown),
+            score_breakdown=breakdown,
             status="suggested",
         )
 
