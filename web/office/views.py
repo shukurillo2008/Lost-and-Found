@@ -19,7 +19,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -30,6 +30,7 @@ from django.utils.translation import check_for_language, gettext as _
 from django.views.static import serve as static_serve
 
 from catalog.models import Category, Color, Location
+from matching.engine import score_breakdown, score_from_breakdown
 from matching.models import Handover, MatchSuggestion
 from reports.models import FoundReport, LostReport
 from storage.models import ItemStatusLog, StoredItem
@@ -142,7 +143,7 @@ def dashboard_page(request: HttpRequest) -> HttpResponse:
         {"label": _("Expiring within 7 days"), "value": expiring,
          "icon": "ti-alarm", "href": f"{storage_url}?filter=expiring"},
         {"label": _("Open lost reports"), "value": open_reports,
-         "icon": "ti-flag", "href": reports_url},
+         "icon": "ti-flag", "href": f"{reports_url}?status=open"},
         {"label": _("Pending match suggestions"), "value": pending_matches,
          "icon": "ti-puzzle", "href": matches_url},
         {"label": _("Items returned this month"), "value": returned_month,
@@ -218,6 +219,18 @@ def _status_labels() -> dict:
         "returned": _("Returned"),
         "disposed": _("Disposed"),
         "transferred": _("Transferred"),
+    }
+
+
+def _lost_status_labels() -> dict:
+    """Translated labels for LostReport statuses (render-time only, same
+    pattern as ``_status_labels``)."""
+    return {
+        "open": _("Open"),
+        "matched": _("Matched"),
+        "returned": _("Returned"),
+        "expired": _("Expired"),
+        "cancelled": _("Cancelled"),
     }
 
 
@@ -884,7 +897,256 @@ def storage_handover(request: HttpRequest, item_id: int) -> HttpResponse:
 
 @staff_required
 def reports_lost_list(request: HttpRequest) -> HttpResponse:
-    return render(request, "reports/lost_list.html", {})
+    """Lost reports — filterable list (section 4.2 of the course brief).
+
+    GET parameters: q, status, category, location, page. The dashboard
+    "Open lost reports" card deep-links here with ``?status=open``.
+    The listing is search-plus-filters only; all parsing lives in this
+    view function (no forms.py) and the template renders ``rows``.
+    """
+    lang = _ui_lang(request)
+
+    status = request.GET.get("status") or "all"
+    if status not in ("open", "matched", "returned", "expired", "cancelled", "all"):
+        status = "all"
+
+    query = (request.GET.get("q") or "").strip()
+    category_id = request.GET.get("category") or ""
+    location_id = request.GET.get("location") or ""
+
+    reports = (
+        LostReport.objects.select_related("category", "color", "reporter", "location")
+        .annotate(
+            suggested_count=Count(
+                "match_suggestions",
+                filter=Q(match_suggestions__status="suggested"),
+                distinct=True,
+            )
+        )
+        .order_by("-date_lost", "-created_at")
+    )
+    if status != "all":
+        reports = reports.filter(status=status)
+    if query:
+        reports = reports.filter(Q(title__icontains=query) | Q(description__icontains=query))
+    if category_id.isdigit():
+        reports = reports.filter(category_id=int(category_id))
+    if location_id.isdigit():
+        reports = reports.filter(location_id=int(location_id))
+
+    paginator = Paginator(reports, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    labels = _lost_status_labels()
+    rows = [
+        {
+            "report": report,
+            "status_label": labels.get(report.status, report.status),
+            "category_name": report.category.localized_name(lang),
+            "color_name": report.color.localized_name(lang) if report.color else "",
+            "location_name": report.location.display(lang) if report.location else "",
+            "suggested_count": report.suggested_count,
+        }
+        for report in page_obj
+    ]
+
+    params = request.GET.copy()
+    if "page" in params:
+        del params["page"]
+    qstring = f"{params.urlencode()}&" if params else ""
+
+    return render(request, "reports/lost_list.html", {
+        "rows": rows,
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "has_filters": bool(query or category_id or location_id or status != "all"),
+        "status": status,
+        "query": query,
+        "selected_category": category_id,
+        "selected_location": location_id,
+        "category_choices": [
+            (cat.pk, cat.localized_name(lang))
+            for cat in Category.objects.order_by("name_uz")
+        ],
+        "location_choices": [
+            (loc.pk, loc.display(lang))
+            for loc in Location.objects.order_by("building_uz", "area_uz")
+        ],
+    })
+
+
+def _suggestion_rows(report, lang):
+    """Render-ready data for the match review block of the detail page.
+
+    Rows are ordered: pending decisions first, then confirmed, then
+    rejected; each carries the numeric breakdown translated for the UI.
+    """
+    labels = _status_labels()
+    criteria_pins = {
+        "color": _("Same color"),
+        "temporal": _("Found within 14 days"),
+        "building": _("Same building"),
+        "area": _("Same area"),
+        "words": _("Shared words"),
+    }
+    decision_labels = {
+        "suggested": _("Suggested"),
+        "confirmed": _("Confirmed"),
+        "rejected": _("Rejected"),
+    }
+    suggestions = list(
+        report.match_suggestions.select_related(
+            "stored_item__category", "stored_item__color",
+            "stored_item__found_report", "reviewed_by",
+        )
+    )
+    suggestions.sort(
+        key=lambda s: (
+            {"suggested": 0, "confirmed": 1, "rejected": 2}.get(s.status, 3),
+            -s.score,
+        )
+    )
+    rows = []
+    for suggestion in suggestions:
+        item = suggestion.stored_item
+        breakdown = [
+            {"label": criteria_pins[key], "points": suggestion.score_breakdown.get(key)}
+            for key in ("color", "temporal", "building", "area", "words")
+            if suggestion.score_breakdown.get(key)
+        ]
+        rows.append({
+            "suggestion": suggestion,
+            "decision_label": decision_labels.get(suggestion.status, suggestion.status),
+            "item": item,
+            "item_status_label": labels.get(item.status, item.status) if item else "",
+            "item_category": item.category.localized_name(lang) if item else "",
+            "item_color": item.color.localized_name(lang) if item else "",
+            "breakdown": breakdown,
+            "shared_words": suggestion.score_breakdown.get("shared_words") or [],
+        })
+    return rows
+
+
+@staff_required
+def reports_lost_detail(request: HttpRequest, report_id: int) -> HttpResponse:
+    """Lost report detail (section 4.2): report facts with trilingual
+    streams plus the review block — confirm, reject or manually pick any
+    stored item as a match.
+
+    Confirming a suggestion sets the report to ``matched``; rejecting the
+    last confirmed suggestion drops it back to ``open``. A confirmed match
+    pre-resolves the handover receiver (M5.8 flow). Manual picks score the
+    pair via the matching engine and remember ``created_by="staff"``.
+    """
+    report = get_object_or_404(
+        LostReport.objects.select_related("category", "color", "reporter", "location"),
+        pk=report_id,
+    )
+    lang = _ui_lang(request)
+
+    if request.method == "POST":
+        action = request.POST.get("action") or ""
+
+        if action in ("confirm", "reject"):
+            suggestion = report.match_suggestions.filter(
+                pk=request.POST.get("suggestion_id") or 0
+            ).select_related("reviewed_by").first()
+            if suggestion is None:
+                messages.error(request, _("No such suggestion for this report."))
+            elif action == "confirm" and suggestion.status != "suggested":
+                # Confirming twice is a no-op; only fresh suggestions confirm.
+                messages.info(request, _("This suggestion was already reviewed."))
+            elif action == "reject" and suggestion.status == "rejected":
+                messages.info(request, _("This suggestion was already reviewed."))
+            elif action == "confirm":
+                suggestion.status = "confirmed"
+                suggestion.reviewed_by = request.user
+                suggestion.reviewed_at = timezone.now()
+                suggestion.save()
+                if report.status == "open":
+                    report.status = "matched"
+                    report.save()
+                messages.success(request, _("Match confirmed — the handover form is pre-filled."))
+            else:
+                suggestion.status = "rejected"
+                suggestion.reviewed_by = request.user
+                suggestion.reviewed_at = timezone.now()
+                suggestion.save()
+                if report.status == "matched" and not report.match_suggestions.filter(
+                    status="confirmed"
+                ).exists():
+                    report.status = "open"
+                    report.save()
+                messages.success(request, _("Suggestion rejected."))
+            return redirect("reports_lost_detail", report_id=report.pk)
+
+        if action == "pick":
+            if report.status not in ("open", "matched"):
+                messages.error(request, _("Only open or matched reports accept new suggestions."))
+            else:
+                raw_id = (request.POST.get("stored_item") or "").strip()
+                if not raw_id.isdigit():
+                    messages.error(request, _("Choose an item from the shelf list."))
+                else:
+                    item = (
+                        StoredItem.objects.filter(status="in_storage", pk=int(raw_id))
+                        .select_related("category", "color", "found_report")
+                        .first()
+                    )
+                    if item is None:
+                        messages.error(request, _("Only items in storage can be matched."))
+                    else:
+                        breakdown = {"source": "staff_pick", **score_breakdown(report, item)}
+                        try:
+                            MatchSuggestion.objects.create(
+                                lost_report=report, stored_item=item, created_by="staff",
+                                score=score_from_breakdown(breakdown),
+                                score_breakdown=breakdown, status="suggested",
+                            )
+                        except IntegrityError:
+                            messages.warning(
+                                request, _("This item is already suggested for the report.")
+                            )
+                        else:
+                            messages.success(request, _("Suggestion created from the pick."))
+            return redirect("reports_lost_detail", report_id=report.pk)
+
+        messages.error(request, _("Unknown action."))
+        return redirect("reports_lost_detail", report_id=report.pk)
+
+    # ---- GET: assemble the page -----------------------------------------
+    labels = _lost_status_labels()
+
+    pick_choices = []
+    if report.status in ("open", "matched"):
+        existing_ids = list(report.match_suggestions.values_list("stored_item_id", flat=True))
+        pick_choices = [
+            (item.pk, f"{item.shelf_code} — {item.title} ({item.category.localized_name(lang)})")
+            for item in StoredItem.objects.filter(status="in_storage")
+            .select_related("category", "color")
+            .exclude(pk__in=existing_ids)
+            .order_by("shelf_code")[:100]
+        ]
+
+    return render(request, "reports/lost_detail.html", {
+        "report": report,
+        "status_label": labels.get(report.status, report.status),
+        "category_name": report.category.localized_name(lang),
+        "color_name": report.color.localized_name(lang) if report.color else "",
+        "location_name": report.location.display(lang) if report.location else "",
+        "reporter_name": report.reporter.display_name,
+        "photo_url": reverse("report_photo", args=["lost", report.pk]) if report.photo_file_id else None,
+        "title_streams": {
+            code: report.title_in(code) for code in ("uz", "en", "ru")
+        },
+        "description_streams": {
+            code: report.description_in(code) for code in ("uz", "en", "ru")
+        },
+        "suggestion_rows": _suggestion_rows(report, lang),
+        "pick_choices": pick_choices,
+        "pick_url": reverse("reports_lost_detail", args=[report.pk]),
+        "back_url": reverse("reports_lost_list"),
+    })
 
 
 @staff_required

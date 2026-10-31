@@ -1,6 +1,7 @@
 # Russian translation for the office staff web interface.
 msgid ""
 msgstr ""
+
 "Project-Id-Version: campus-lost-and-found\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-10-18 12:00+0500\n"
@@ -467,3 +468,132 @@ msgstr "Передать можно только предметы со скла�
 
 msgid "Item handed to the receiver."
 msgstr "Предмет выдан получателю."
+
+msgid "All locations"
+msgstr "Все места"
+
+msgid "Matched"
+msgstr "Найдено совпадение"
+
+msgid "Expired"
+msgstr "Срок истёк"
+
+msgid "Lost reports list"
+msgstr "Список заявлений об утере"
+
+msgid "Report"
+msgstr "Заявление"
+
+msgid "Date lost"
+msgstr "Дата потери"
+
+msgid "Pending matches"
+msgstr "Ожидающие совпадения"
+
+msgid "No reports match the filters."
+msgstr "Заявлений по фильтрам не найдено."
+
+msgid "Lost report details"
+msgstr "Детали заявления об утере"
+
+msgid "Brand / marks"
+msgstr "Марка / признаки"
+
+msgid "Reported by"
+msgstr "Кто сообщил"
+
+msgid "Reported on"
+msgstr "Дата подачи"
+
+msgid "Score"
+msgstr "Баллы"
+
+msgid "Kept by the finder"
+msgstr "Оставлено у нашедшего"
+
+msgid "Claimed by the reporter"
+msgstr "Указано автором заявления"
+
+msgid "Proposed by staff"
+msgstr "Предложено сотрудником"
+
+msgid "Found by the system"
+msgstr "Найдено системой"
+
+msgid "Suggested"
+msgstr "Новое предложение"
+
+msgid "Confirmed"
+msgstr "Подтверждено"
+
+msgid "Rejected"
+msgstr "Отклонено"
+
+msgid "Why this score"
+msgstr "Почему такой балл"
+
+msgid "Same color"
+msgstr "Одинаковый цвет"
+
+msgid "Found within 14 days"
+msgstr "Найдено в течение 14 дней"
+
+msgid "Same building"
+msgstr "То же здание"
+
+msgid "Same area"
+msgstr "Та же зона"
+
+msgid "Shared words"
+msgstr "Общие слова"
+
+msgid "Reviewed by"
+msgstr "Проверил"
+
+msgid "this claim pre-fills the handover receiver."
+msgstr "эта заявка заранее заполняет получателя в форме выдачи."
+
+msgid "Choose an item"
+msgstr "Выберите вещь"
+
+msgid "Add suggestion"
+msgstr "Добавить предложение"
+
+msgid "Pick a stored item"
+msgstr "Выберите вещь на складе"
+
+msgid "Manual match"
+msgstr "Ручное сопоставление"
+
+msgid "Only open or matched reports accept new suggestions."
+msgstr "Новые предложения принимаются только для открытых или совпавших заявлений."
+
+msgid "Back to reports"
+msgstr "К списку заявлений"
+
+msgid "No such suggestion for this report."
+msgstr "Такого предложения у заявления нет."
+
+msgid "This suggestion was already reviewed."
+msgstr "Это предложение уже рассмотрено."
+
+msgid "Match confirmed — the handover form is pre-filled."
+msgstr "Совпадение подтверждено — форма выдачи заполнена заранее."
+
+msgid "Suggestion rejected."
+msgstr "Предложение отклонено."
+
+msgid "Only items in storage can be matched."
+msgstr "Сопоставлять можно только вещи на складе."
+
+msgid "This item is already suggested for the report."
+msgstr "Эта вещь уже предложена для заявления."
+
+msgid "Suggestion created from the pick."
+msgstr "Предложение создано по выбранной вещи."
+
+msgid "Choose an item from the shelf list."
+msgstr "Выберите вещь из списка полок."
+
+msgid "Unknown action."
+msgstr "Неизвестное действие."

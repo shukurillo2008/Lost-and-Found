@@ -1,6 +1,7 @@
 # Uzbek translation for the office staff web interface.
 msgid ""
 msgstr ""
+
 "Project-Id-Version: campus-lost-and-found\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-10-18 12:00+0500\n"
@@ -467,3 +468,132 @@ msgstr "Faqat ombordagi buyumlar topshiriladi."
 
 msgid "Item handed to the receiver."
 msgstr "Buyum qabul qiluvchiga berildi."
+
+msgid "All locations"
+msgstr "Barcha joylar"
+
+msgid "Matched"
+msgstr "Mos kelildi"
+
+msgid "Expired"
+msgstr "Muddati tugadi"
+
+msgid "Lost reports list"
+msgstr "Yo‛qotilgan arizalar ro‛yxati"
+
+msgid "Report"
+msgstr "Ariza"
+
+msgid "Date lost"
+msgstr "Yo‛qotilgan sana"
+
+msgid "Pending matches"
+msgstr "Kutilayotgan moslar"
+
+msgid "No reports match the filters."
+msgstr "Filtrlarga mos ariza yo‛q."
+
+msgid "Lost report details"
+msgstr "Yo‛qotilgan ariza tafsilotlari"
+
+msgid "Brand / marks"
+msgstr "Brend / belgilar"
+
+msgid "Reported by"
+msgstr "Ariza qoldirgan"
+
+msgid "Reported on"
+msgstr "Ariza sanasi"
+
+msgid "Score"
+msgstr "Ball"
+
+msgid "Kept by the finder"
+msgstr "Topgan shaxs o‛zida qoldirgan"
+
+msgid "Claimed by the reporter"
+msgstr "Ariza egasi tanlagan"
+
+msgid "Proposed by staff"
+msgstr "Xodim taklif qilgan"
+
+msgid "Found by the system"
+msgstr "Tizim topgan"
+
+msgid "Suggested"
+msgstr "Yangi taklif"
+
+msgid "Confirmed"
+msgstr "Tasdiqlangan"
+
+msgid "Rejected"
+msgstr "Rad etilgan"
+
+msgid "Why this score"
+msgstr "Bu ball sabablari"
+
+msgid "Same color"
+msgstr "Bir xil rang"
+
+msgid "Found within 14 days"
+msgstr "14 kun ichida topilgan"
+
+msgid "Same building"
+msgstr "Bir xil bino"
+
+msgid "Same area"
+msgstr "Bir xil hudud"
+
+msgid "Shared words"
+msgstr "Umumiy so‛zlar"
+
+msgid "Reviewed by"
+msgstr "Ko‛rib chiqdi"
+
+msgid "this claim pre-fills the handover receiver."
+msgstr "bu tasdiqlangan ariza topshirish formasini avtomatik to‛ldiradi."
+
+msgid "Choose an item"
+msgstr "Buyumni tanlang"
+
+msgid "Add suggestion"
+msgstr "Taklif qo‛shish"
+
+msgid "Pick a stored item"
+msgstr "Ombordagi buyumni tanlash"
+
+msgid "Manual match"
+msgstr "Qo‛lda moslashtirish"
+
+msgid "Only open or matched reports accept new suggestions."
+msgstr "Faqat ochiq yoki mos kelgan arizalar yangi taklif qabul qiladi."
+
+msgid "Back to reports"
+msgstr "Arizalarga qaytish"
+
+msgid "No such suggestion for this report."
+msgstr "Bu arizada bunday taklif yo‛q."
+
+msgid "This suggestion was already reviewed."
+msgstr "Bu taklif allaqachon ko‛rib chiqilgan."
+
+msgid "Match confirmed — the handover form is pre-filled."
+msgstr "Moslik tasdiqlandi — topshirish formasi oldindan to‛ldiriladi."
+
+msgid "Suggestion rejected."
+msgstr "Taklif rad etildi."
+
+msgid "Only items in storage can be matched."
+msgstr "Faqat ombordagi buyumlar moslashtiriladi."
+
+msgid "This item is already suggested for the report."
+msgstr "Bu buyum ariza uchun allaqachon taklif qilingan."
+
+msgid "Suggestion created from the pick."
+msgstr "Tanlov asosida taklif yaratildi."
+
+msgid "Choose an item from the shelf list."
+msgstr "Polka ro‛yxatidan buyum tanlang."
+
+msgid "Unknown action."
+msgstr "Noma‛lum amal."

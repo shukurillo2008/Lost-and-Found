@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Lost report details" %}{% endblock %}
+{% block page_title %}{% trans "Lost report details" %}{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <!-- LEFT: photo + report facts -->
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="detail-photo-shell mb-3">
+                    {% if photo_url %}
+                        <img class="detail-photo" src="{{ photo_url }}" alt="{{ report.title }}" width="640" height="400">
+                    {% else %}
+                        <i class="ti ti-photo" aria-hidden="true"></i>
+                    {% endif %}
+                </div>
+
+                <h2 class="h5 fw-bold mb-2">{{ report.title }}</h2>
+                <p class="mb-3"><span class="badge status-badge status-{{ report.status }}">{{ status_label }}</span></p>
+
+                <dl class="detail-list mb-0">
+                    <dt>{% trans "Category" %}</dt>
+                    <dd>{{ category_name }}</dd>
+                    <dt>{% trans "Color" %}</dt>
+                    <dd>{{ color_name }}</dd>
+                    {% if report.brand_marks %}
+                    <dt>{% trans "Brand / marks" %}</dt>
+                    <dd>{{ report.brand_marks }}</dd>
+                    {% endif %}
+                    {% if location_name %}
+                    <dt>{% trans "Location" %}</dt>
+                    <dd>{{ location_name }}</dd>
+                    {% endif %}
+                    <dt>{% trans "Date lost" %}</dt>
+                    <dd>{{ report.date_lost|date:"d.m.Y" }}</dd>
+                    <dt>{% trans "Reported by" %}</dt>
+                    <dd>{{ reporter_name }}</dd>
+                    <dt>{% trans "Reported on" %}</dt>
+                    <dd>{{ report.created_at|date:"d.m.Y H:i" }}</dd>
+                </dl>
+
+                <h3 class="detail-section-label mt-4">{% trans "Description" %}</h3>
+                <p class="text-muted mb-0 lh-base">{{ report.description|linebreaksbr }}</p>
+
+                <!-- Title as written in the three report languages -->
+                <div class="report-titles mt-3">
+                    {% for code, stream in title_streams.items %}
+                    <p class="mb-1">
+                        <span class="badge text-bg-light border lang-tag">{% if code == "uz" %}O‛zbekcha{% elif code == "ru" %}Русский{% else %}English{% endif %}</span>
+                        {{ stream }}
+                    </p>
+                    {% endfor %}
+                </div>
+
+                <!-- Description in the three report languages -->
+                <div class="report-titles">
+                    {% for code, stream in description_streams.items %}
+                    <p class="mb-1">
+                        <span class="badge text-bg-light border lang-tag">{% if code == "uz" %}O‛zbekcha{% elif code == "ru" %}Русский{% else %}English{% endif %}</span>
+                        {{ stream|truncatechars:120 }}
+                    </p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: match review -->
+    <div class="col-12 col-lg-7 d-flex flex-column gap-3">
+        <div class="card border-0 shadow-sm" id="matches">
+            <div class="card-body p-4">
+                <h2 class="detail-section-label"><i class="ti ti-puzzle" aria-hidden="true"></i> {% trans "Match suggestions" %}</h2>
+
+                {% if suggestion_rows %}
+                <div class="d-flex flex-column gap-3 mt-2">
+                    {% for s in suggestion_rows %}
+                    <div class="match-row p-3 border rounded-3 h-100">
+                        <div class="d-flex align-items-start gap-2">
+                            <span class="badge match-score" title="{% trans 'Score' %}">{{ s.suggestion.score }}</span>
+                            <div class="match-row-body">
+                                {% if s.item %}
+                                <div class="fw-semibold">
+                                    <a href="{% url 'storage_item_detail' s.item.pk %}">{{ s.item.shelf_code }} — {{ s.item.title }}</a>
+                                </div>
+                                <div class="small text-muted">{{ s.item_category }} · {{ s.item_color }} ·
+                                    <span class="badge status-badge status-{{ s.item.status }}">{{ s.item_status_label }}</span>
+                                </div>
+                                {% else %}
+                                <div class="fw-semibold">{% trans "Kept by the finder" %}</div>
+                                {% endif %}
+                                <div class="small text-muted">
+                                    {% if s.suggestion.created_by == "user" %}
+                                        {% trans "Claimed by the reporter" %}
+                                    {% elif s.suggestion.created_by == "staff" %}
+                                        {% trans "Proposed by staff" %}
+                                    {% else %}
+                                        {% trans "Found by the system" %}
+                                    {% endif %}
+                                    · {{ s.suggestion.created_at|date:"d.m.Y H:i" }}
+                                </div>
+                            </div>
+                            <span class="badge text-bg-light border ms-auto">{{ s.decision_label }}</span>
+                        </div>
+
+                        {% if s.breakdown %}
+                        <div class="mt-2">
+                            <p class="lnf-hint mb-1">{% trans "Why this score" %}</p>
+                            <ul class="list-inline mb-1 d-flex flex-wrap gap-1">
+                                {% for b in s.breakdown %}
+                                <li class="list-inline-item"><span class="badge text-bg-light border">{{ b.label }} <strong>+{{ b.points }}</strong></span></li>
+                                {% endfor %}
+                            </ul>
+                            {% if s.shared_words %}
+                            <p class="lnf-hint mb-0">{% trans "Shared words" %}: {{ s.shared_words|join:", " }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        {% if s.suggestion.status == "suggested" %}
+                        <div class="d-flex gap-2 mt-3">
+                            <form method="post" action="{{ pick_url }}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="confirm">
+                                <input type="hidden" name="suggestion_id" value="{{ s.suggestion.pk }}">
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="ti ti-check" aria-hidden="true"></i> {% trans "Confirm" %}
+                                </button>
+                            </form>
+                            <form method="post" action="{{ pick_url }}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="reject">
+                                <input type="hidden" name="suggestion_id" value="{{ s.suggestion.pk }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="ti ti-x" aria-hidden="true"></i> {% trans "Reject" %}
+                                </button>
+                            </form>
+                        </div>
+                        {% elif s.suggestion.status == "confirmed" %}
+                        <p class="lnf-hint mb-0 mt-2"><i class="ti ti-user-check" aria-hidden="true"></i>
+                            {% trans "Reviewed by" %} {{ s.suggestion.reviewed_by.get_username }}
+                            · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
+                            — {% trans "this claim pre-fills the handover receiver." %}
+                        </p>
+                        {% else %}
+                        <p class="lnf-hint mb-0 mt-2"><i class="ti ti-user-x" aria-hidden="true"></i>
+                            {% trans "Reviewed by" %} {{ s.suggestion.reviewed_by.get_username }}
+                            · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">{% trans "No suggestions yet." %}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="detail-section-label"><i class="ti ti-hand-click" aria-hidden="true"></i> {% trans "Manual match" %}</h2>
+                {% if report.status == 'open' or report.status == 'matched' %}
+                <form class="row g-2" method="post" action="{{ pick_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="pick">
+                    <div class="col-12 col-md-8">
+                        <label class="form-label visually-hidden" for="pickStoredItem">{% trans "Pick a stored item" %}</label>
+                        <select class="form-select form-select-sm" id="pickStoredItem" name="stored_item" required>
+                            <option value="">{% trans "Choose an item" %}</option>
+                            {% for item_pk, item_label in pick_choices %}
+                            <option value="{{ item_pk }}">{{ item_label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="ti ti-plus" aria-hidden="true"></i> {% trans "Add suggestion" %}
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <p class="small text-muted mb-0">{% trans "Only open or matched reports accept new suggestions." %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ back_url }}">
+        <i class="ti ti-arrow-left" aria-hidden="true"></i> {% trans "Back to reports" %}
+    </a>
+</div>
+{% endblock %}

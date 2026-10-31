@@ -24,6 +24,7 @@ urlpatterns = [
 
     # Reports
     path("reports/lost/", views.reports_lost_list, name="reports_lost_list"),
+    path("reports/lost/<int:report_id>/", views.reports_lost_detail, name="reports_lost_detail"),
     path("reports/matches/", views.reports_match_review, name="reports_match_review"),
 
     # Catalog
