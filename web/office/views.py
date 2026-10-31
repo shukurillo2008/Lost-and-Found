@@ -928,7 +928,16 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
     if status != "all":
         reports = reports.filter(status=status)
     if query:
-        reports = reports.filter(Q(title__icontains=query) | Q(description__icontains=query))
+        # Search what the table can *show*: canonical text plus every
+        # language stream, so a term visible on any UI language also
+        # finds its report (ru visitors type the translated title).
+        reports = reports.filter(
+            Q(title__icontains=query) | Q(description__icontains=query)
+            | Q(title_uz__icontains=query) | Q(title_en__icontains=query)
+            | Q(title_ru__icontains=query)
+            | Q(description_uz__icontains=query) | Q(description_en__icontains=query)
+            | Q(description_ru__icontains=query)
+        )
     if category_id.isdigit():
         reports = reports.filter(category_id=int(category_id))
     if location_id.isdigit():
@@ -941,6 +950,11 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
     rows = [
         {
             "report": report,
+            # Title/description follow the UI language exactly like the
+            # category/color columns; blank streams fall back to the
+            # canonical original text (title_in/description_in).
+            "title_ui": report.title_in(lang),
+            "description_ui": report.description_in(lang),
             "status_label": labels.get(report.status, report.status),
             "category_name": report.category.localized_name(lang),
             "color_name": report.color.localized_name(lang) if report.color else "",

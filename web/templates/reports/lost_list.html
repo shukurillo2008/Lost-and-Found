@@ -93,8 +93,8 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a class="item-title" href="{% url 'reports_lost_detail' row.report.pk %}">{{ row.report.title }}</a>
-                        <div class="item-desc small text-muted">{{ row.report.description|truncatechars:60 }}</div>
+                        <a class="item-title" href="{% url 'reports_lost_detail' row.report.pk %}">{{ row.title_ui }}</a>
+                        <div class="item-desc small text-muted">{{ row.description_ui|truncatechars:60 }}</div>
                     </td>
                     <td>{{ row.category_name }}</td>
                     <td>{{ row.color_name }}</td>
