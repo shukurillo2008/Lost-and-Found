@@ -597,3 +597,15 @@ msgstr "Выберите вещь из списка полок."
 
 msgid "Unknown action."
 msgstr "Неизвестное действие."
+
+msgid "Suggestions"
+msgstr "Предложения"
+
+msgid "All decisions"
+msgstr "Все решения"
+
+msgid "No suggestions match the filters."
+msgstr "Предложений по фильтрам не найдено."
+
+msgid "No such match suggestion."
+msgstr "Такого предложения нет."

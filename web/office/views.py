@@ -989,13 +989,9 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
     })
 
 
-def _suggestion_rows(report, lang):
-    """Render-ready data for the match review block of the detail page.
-
-    Rows are ordered: pending decisions first, then confirmed, then
-    rejected; each carries the numeric breakdown translated for the UI.
-    """
-    labels = _status_labels()
+def _suggestion_row(suggestion: MatchSuggestion, lang: str, labels: dict) -> dict:
+    """Render-ready data for ONE match suggestion row (detail page and
+    review queue share the same card via ``reports/_suggestion_row.html``)."""
     criteria_pins = {
         "color": _("Same color"),
         "temporal": _("Found within 14 days"),
@@ -1008,6 +1004,31 @@ def _suggestion_rows(report, lang):
         "confirmed": _("Confirmed"),
         "rejected": _("Rejected"),
     }
+    item = suggestion.stored_item
+    breakdown = [
+        {"label": criteria_pins[key], "points": suggestion.score_breakdown.get(key)}
+        for key in ("color", "temporal", "building", "area", "words")
+        if suggestion.score_breakdown.get(key)
+    ]
+    return {
+        "suggestion": suggestion,
+        "decision_label": decision_labels.get(suggestion.status, suggestion.status),
+        "item": item,
+        "item_status_label": labels.get(item.status, item.status) if item else "",
+        "item_category": item.category.localized_name(lang) if item else "",
+        "item_color": item.color.localized_name(lang) if item else "",
+        "breakdown": breakdown,
+        "shared_words": suggestion.score_breakdown.get("shared_words") or [],
+    }
+
+
+def _suggestion_rows(report, lang):
+    """Render-ready data for the match review block of the detail page.
+
+    Rows are ordered: pending decisions first, then confirmed, then
+    rejected; each carries the numeric breakdown translated for the UI.
+    """
+    labels = _status_labels()
     suggestions = list(
         report.match_suggestions.select_related(
             "stored_item__category", "stored_item__color",
@@ -1020,25 +1041,44 @@ def _suggestion_rows(report, lang):
             -s.score,
         )
     )
-    rows = []
-    for suggestion in suggestions:
-        item = suggestion.stored_item
-        breakdown = [
-            {"label": criteria_pins[key], "points": suggestion.score_breakdown.get(key)}
-            for key in ("color", "temporal", "building", "area", "words")
-            if suggestion.score_breakdown.get(key)
-        ]
-        rows.append({
-            "suggestion": suggestion,
-            "decision_label": decision_labels.get(suggestion.status, suggestion.status),
-            "item": item,
-            "item_status_label": labels.get(item.status, item.status) if item else "",
-            "item_category": item.category.localized_name(lang) if item else "",
-            "item_color": item.color.localized_name(lang) if item else "",
-            "breakdown": breakdown,
-            "shared_words": suggestion.score_breakdown.get("shared_words") or [],
-        })
-    return rows
+    return [_suggestion_row(s, lang, labels) for s in suggestions]
+
+
+def _decide_suggestion(request: HttpRequest, suggestion: MatchSuggestion, action: str) -> bool:
+    """Shared staff decision for one match suggestion.
+
+    Used by the report detail page AND the review queue, so both behave
+    identically: a fresh suggestion accepts ``confirm``; rejection works
+    on suggested and confirmed rows (undo of a confirmation); rejecting
+    the last confirmed suggestion drops the report back to ``open``.
+    Returns True when a new decision was recorded.
+    """
+    report = suggestion.lost_report
+    if action == "confirm" and suggestion.status != "suggested":
+        # Confirming twice is a no-op; only fresh suggestions confirm.
+        messages.info(request, _("This suggestion was already reviewed."))
+        return False
+    if action == "reject" and suggestion.status == "rejected":
+        messages.info(request, _("This suggestion was already reviewed."))
+        return False
+
+    suggestion.status = "confirmed" if action == "confirm" else "rejected"
+    suggestion.reviewed_by = request.user
+    suggestion.reviewed_at = timezone.now()
+    suggestion.save()
+    if action == "confirm":
+        if report.status == "open":
+            report.status = "matched"
+            report.save()
+        messages.success(request, _("Match confirmed — the handover form is pre-filled."))
+    else:
+        if report.status == "matched" and not report.match_suggestions.filter(
+            status="confirmed"
+        ).exists():
+            report.status = "open"
+            report.save()
+        messages.success(request, _("Suggestion rejected."))
+    return True
 
 
 @staff_required
@@ -1064,34 +1104,11 @@ def reports_lost_detail(request: HttpRequest, report_id: int) -> HttpResponse:
         if action in ("confirm", "reject"):
             suggestion = report.match_suggestions.filter(
                 pk=request.POST.get("suggestion_id") or 0
-            ).select_related("reviewed_by").first()
+            ).select_related("lost_report", "reviewed_by").first()
             if suggestion is None:
                 messages.error(request, _("No such suggestion for this report."))
-            elif action == "confirm" and suggestion.status != "suggested":
-                # Confirming twice is a no-op; only fresh suggestions confirm.
-                messages.info(request, _("This suggestion was already reviewed."))
-            elif action == "reject" and suggestion.status == "rejected":
-                messages.info(request, _("This suggestion was already reviewed."))
-            elif action == "confirm":
-                suggestion.status = "confirmed"
-                suggestion.reviewed_by = request.user
-                suggestion.reviewed_at = timezone.now()
-                suggestion.save()
-                if report.status == "open":
-                    report.status = "matched"
-                    report.save()
-                messages.success(request, _("Match confirmed — the handover form is pre-filled."))
             else:
-                suggestion.status = "rejected"
-                suggestion.reviewed_by = request.user
-                suggestion.reviewed_at = timezone.now()
-                suggestion.save()
-                if report.status == "matched" and not report.match_suggestions.filter(
-                    status="confirmed"
-                ).exists():
-                    report.status = "open"
-                    report.save()
-                messages.success(request, _("Suggestion rejected."))
+                _decide_suggestion(request, suggestion, action)
             return redirect("reports_lost_detail", report_id=report.pk)
 
         if action == "pick":
@@ -1165,7 +1182,76 @@ def reports_lost_detail(request: HttpRequest, report_id: int) -> HttpResponse:
 
 @staff_required
 def reports_match_review(request: HttpRequest) -> HttpResponse:
-    return render(request, "reports/match_review.html", {})
+    """Global match review queue (requirement 5).
+
+    Defaults to the pending (``suggested``) decisions, grouped per lost
+    report; the ``?status=`` filter also exposes confirmed, rejected or
+    all decisions for transparency. POST applies the same confirm/reject
+    semantics as the report detail page (``_decide_suggestion``) and
+    redirects back to the same filter view.
+    """
+    lang = _ui_lang(request)
+
+    if request.method == "POST":
+        action = request.POST.get("action") or ""
+        if action in ("confirm", "reject"):
+            suggestion = MatchSuggestion.objects.filter(
+                pk=request.POST.get("suggestion_id") or 0
+            ).select_related("lost_report", "reviewed_by").first()
+            if suggestion is None:
+                messages.error(request, _("No such match suggestion."))
+            else:
+                _decide_suggestion(request, suggestion, action)
+        else:
+            messages.error(request, _("Unknown action."))
+        return redirect(request.get_full_path())
+
+    decision = request.GET.get("status") or "suggested"
+    if decision not in ("suggested", "confirmed", "rejected", "all"):
+        decision = "suggested"
+
+    suggestions = MatchSuggestion.objects.select_related(
+        "lost_report", "lost_report__reporter",
+        "stored_item__category", "stored_item__color",
+        "stored_item__found_report", "reviewed_by",
+    ).order_by(
+        "-lost_report__date_lost", "-lost_report__id", "-score", "-created_at"
+    )
+    if decision != "all":
+        suggestions = suggestions.filter(status=decision)
+
+    paginator = Paginator(suggestions, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    labels = _status_labels()
+    lost_labels = _lost_status_labels()
+    groups = []
+    for suggestion in page_obj:
+        report = suggestion.lost_report
+        if not groups or groups[-1]["report"].pk != report.pk:
+            groups.append({
+                "report": report,
+                "title_ui": report.title_in(lang),
+                "status_label": lost_labels.get(report.status, report.status),
+                "date_lost": report.date_lost,
+                "reporter_name": report.reporter.display_name,
+                "rows": [],
+            })
+        groups[-1]["rows"].append(_suggestion_row(suggestion, lang, labels))
+
+    params = request.GET.copy()
+    if "page" in params:
+        del params["page"]
+    qstring = f"{params.urlencode()}&" if params else ""
+
+    return render(request, "reports/match_review.html", {
+        "groups": groups,
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "decision": decision,
+        "qstring": qstring,
+        "post_url": request.get_full_path(),
+    })
 
 
 # ---------------------------------------------------------------------------

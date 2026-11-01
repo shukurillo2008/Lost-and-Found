@@ -597,3 +597,15 @@ msgstr "Polka ro‛yxatidan buyum tanlang."
 
 msgid "Unknown action."
 msgstr "Noma‛lum amal."
+
+msgid "Suggestions"
+msgstr "Takliflar"
+
+msgid "All decisions"
+msgstr "Barcha qarorlar"
+
+msgid "No suggestions match the filters."
+msgstr "Filtrlarga mos taklif yo‛q."
+
+msgid "No such match suggestion."
+msgstr "Bunday taklif yo‛q."
