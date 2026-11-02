@@ -609,3 +609,48 @@ msgstr "Предложений по фильтрам не найдено."
 
 msgid "No such match suggestion."
 msgstr "Такого предложения нет."
+
+msgid "Building"
+msgstr "Корпус"
+
+msgid "Area"
+msgstr "Зона"
+
+msgid "Add location"
+msgstr "Добавить место"
+
+msgid "Edit location"
+msgstr "Редактирование места"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Actions"
+msgstr "Действия"
+
+msgid "No locations yet. Add the first one on the left."
+msgstr "Пока нет мест. Добавьте первое слева."
+
+msgid "Building and area are required."
+msgstr "Укажите корпус и зону."
+
+msgid "This building and area pair already exists."
+msgstr "Такая пара «корпус — зона» уже есть."
+
+msgid "This location is referenced by reports and cannot be deleted."
+msgstr "Это место используется в заявлениях и не может быть удалено."
+
+msgid "Location created."
+msgstr "Место добавлено."
+
+msgid "Location updated."
+msgstr "Место сохранено."
+
+msgid "Location deleted."
+msgstr "Место удалено."
+
+msgid "Optional fields are auto-translated when left blank."
+msgstr "Необязательные поля заполняются автоматически при сохранении пустыми."

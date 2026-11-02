@@ -4,6 +4,158 @@
 {% block page_title %}{% trans "Locations (buildings and areas)" %}{% endblock %}
 
 {% block content %}
-<!-- Mini milestone TODO: location list + create/edit form (three languages) -->
-<div class="alert alert-info">{% trans "This page is being built (next mini milestone)." %}</div>
+<div class="row g-3">
+    <!-- LEFT: create/edit form -->
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h5 fw-bold mb-1">
+                    {% if location %}
+                        <i class="ti ti-pencil" aria-hidden="true"></i> {% trans "Edit location" %}
+                    {% else %}
+                        <i class="ti ti-plus" aria-hidden="true"></i> {% trans "Add location" %}
+                    {% endif %}
+                </h2>
+                <p class="lnf-hint mb-3">{% trans "Optional fields are auto-translated when left blank." %}</p>
+
+                <form method="post" action="{{ form_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save">
+
+                    <!-- Building in three languages (uz canonical, required) -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="fw-semibold">{% trans "Building" %}</span>
+                            <span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                            <span class="badge text-bg-light border lang-tag">English</span>
+                            <span class="badge text-bg-light border lang-tag">Русский</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label visually-hidden" for="buildingUz">{% trans "Building" %} (O‛zbekcha)</label>
+                                <input class="form-control form-control-sm" id="buildingUz" name="building_uz" maxlength="100"
+                                       value="{{ location.building_uz|default:'' }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label visually-hidden" for="buildingEn">{% trans "Building" %} (English)</label>
+                                <input class="form-control form-control-sm" id="buildingEn" name="building_en" maxlength="100"
+                                       value="{{ location.building_en|default:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label visually-hidden" for="buildingRu">{% trans "Building" %} (Русский)</label>
+                                <input class="form-control form-control-sm" id="buildingRu" name="building_ru" maxlength="100"
+                                       value="{{ location.building_ru|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Area in three languages -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="fw-semibold">{% trans "Area" %}</span>
+                            <span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                            <span class="badge text-bg-light border lang-tag">English</span>
+                            <span class="badge text-bg-light border lang-tag">Русский</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label visually-hidden" for="areaUz">{% trans "Area" %} (O‛zbekcha)</label>
+                                <input class="form-control form-control-sm" id="areaUz" name="area_uz" maxlength="150"
+                                       value="{{ location.area_uz|default:'' }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label visually-hidden" for="areaEn">{% trans "Area" %} (English)</label>
+                                <input class="form-control form-control-sm" id="areaEn" name="area_en" maxlength="150"
+                                       value="{{ location.area_en|default:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label visually-hidden" for="areaRu">{% trans "Area" %} (Русский)</label>
+                                <input class="form-control form-control-sm" id="areaRu" name="area_ru" maxlength="150"
+                                       value="{{ location.area_ru|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="ti ti-device-floppy" aria-hidden="true"></i> {% trans "Save" %}
+                        </button>
+                        {% if location %}
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'catalog_location_form' %}">
+                                {% trans "Cancel" %}
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: location list -->
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center p-3 pb-0">
+                <span class="text-muted small">{% trans "Locations" %}: {{ total_count }}</span>
+            </div>
+            <div class="table-responsive-lg">
+                <table class="items-table table table-hover align-middle mb-0">
+                    <caption class="visually-hidden">{% trans "Locations" %}</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">{% trans "Building" %}</th>
+                            <th scope="col">{% trans "Area" %}</th>
+                            <th scope="col">{% trans "Reports" %}</th>
+                            <th scope="col">{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row.building }}</td>
+                            <td>{{ row.area }}</td>
+                            <td>
+                                {% if row.report_count %}
+                                    <span class="badge badge-expiring">{{ row.report_count }}</span>
+                                {% else %}
+                                    <span class="text-muted">{{ row.report_count }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       href="{{ row.edit_url }}" aria-label="{% trans 'Edit location' %}">
+                                        <i class="ti ti-pencil" aria-hidden="true"></i>
+                                    </a>
+                                    {% if row.report_count %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger" disabled
+                                            title="{% trans 'This location is referenced by reports and cannot be deleted.' %}">
+                                        <i class="ti ti-trash" aria-hidden="true"></i>
+                                    </button>
+                                    {% else %}
+                                    <form method="post" action="{% url 'catalog_location_form' %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="location_id" value="{{ row.location.pk }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                aria-label="{% trans 'Delete' %}">
+                                            <i class="ti ti-trash" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">
+                                {% trans "No locations yet. Add the first one on the left." %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

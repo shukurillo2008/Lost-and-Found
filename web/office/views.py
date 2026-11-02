@@ -1260,7 +1260,83 @@ def reports_match_review(request: HttpRequest) -> HttpResponse:
 
 @staff_required
 def catalog_location_form(request: HttpRequest, location_id: int | None = None) -> HttpResponse:
-    return render(request, "catalog/location_form.html", {"location_id": location_id})
+    """Reference data — campus locations (requirement 7).
+
+    One page does list + create/edit + delete; ``/catalog/locations/<id>/``
+    opens the SAME page with the form prefilled for editing. ``building_uz``
+    / ``area_uz`` are required; blank en/ru streams are auto-translated on
+    save (``Location.save`` → ``apply_to_fields``). Deleting is refused
+    while reports still reference the location (the FK is SET_NULL, so a
+    plain delete would silently detach report history).
+    """
+    lang = _ui_lang(request)
+    location = get_object_or_404(Location, pk=location_id) if location_id else None
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "save").strip()
+
+        if action == "delete":
+            if location is None:
+                # Row buttons POST the id with action=delete on the list URL.
+                location = get_object_or_404(Location, pk=request.POST.get("location_id") or 0)
+            if LostReport.objects.filter(location=location).exists():
+                messages.error(
+                    request, _("This location is referenced by reports and cannot be deleted.")
+                )
+            else:
+                location.delete()
+                messages.success(request, _("Location deleted."))
+            return redirect("catalog_location_form")
+
+        building = (request.POST.get("building_uz") or "").strip()
+        area = (request.POST.get("area_uz") or "").strip()
+        if not building or not area:
+            messages.error(request, _("Building and area are required."))
+        else:
+            updates = {
+                "building_uz": building,
+                "area_uz": area,
+                "building_en": (request.POST.get("building_en") or "").strip(),
+                "area_en": (request.POST.get("area_en") or "").strip(),
+                "building_ru": (request.POST.get("building_ru") or "").strip(),
+                "area_ru": (request.POST.get("area_ru") or "").strip(),
+            }
+            target = location if location is not None else Location()
+            for field, value in updates.items():
+                setattr(target, field, value)
+            try:
+                target.save()
+            except IntegrityError:
+                messages.error(request, _("This building and area pair already exists."))
+            else:
+                if location is not None:
+                    messages.success(request, _("Location updated."))
+                else:
+                    messages.success(request, _("Location created."))
+                return redirect("catalog_location_form")
+        return redirect("catalog_location_form")
+
+    rows = [
+        {
+            "location": item,
+            "building": item.localized_building(lang),
+            "area": item.localized_area(lang),
+            "report_count": item.report_count,
+            "edit_url": reverse("catalog_location_edit", args=[item.pk]),
+        }
+        for item in Location.objects.annotate(
+            report_count=Count("lost_reports", distinct=True)
+        )
+    ]
+    return render(request, "catalog/location_form.html", {
+        "rows": rows,
+        "total_count": len(rows),
+        "location": location,
+        "form_url": (
+            reverse("catalog_location_edit", args=[location.pk])
+            if location is not None else reverse("catalog_location_form")
+        ),
+    })
 
 
 @staff_required

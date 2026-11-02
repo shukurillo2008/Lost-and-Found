@@ -609,3 +609,48 @@ msgstr "Filtrlarga mos taklif yo‛q."
 
 msgid "No such match suggestion."
 msgstr "Bunday taklif yo‛q."
+
+msgid "Building"
+msgstr "Bino"
+
+msgid "Area"
+msgstr "Hudud"
+
+msgid "Add location"
+msgstr "Joy qo‛shish"
+
+msgid "Edit location"
+msgstr "Joyni tahrirlash"
+
+msgid "Save"
+msgstr "Saqlash"
+
+msgid "Delete"
+msgstr "O‛chirish"
+
+msgid "Actions"
+msgstr "Amallar"
+
+msgid "No locations yet. Add the first one on the left."
+msgstr "Hozircha joy yo‛q. Chapdan birinchi qo‛shing."
+
+msgid "Building and area are required."
+msgstr "Bino va hudud kiritilishi shart."
+
+msgid "This building and area pair already exists."
+msgstr "Bunday bino–hudud juftligi allaqachon mavjud."
+
+msgid "This location is referenced by reports and cannot be deleted."
+msgstr "Bu joy arizalarda ishlatilgan, o‛chirib bo‛lmaydi."
+
+msgid "Location created."
+msgstr "Joy qo‛shildi."
+
+msgid "Location updated."
+msgstr "Joy saqlandi."
+
+msgid "Location deleted."
+msgstr "Joy o‛chirildi."
+
+msgid "Optional fields are auto-translated when left blank."
+msgstr "Ixtiyoriy maydonlar bo‛sh qoldirilsa avtomatik tarjima qilinadi."
