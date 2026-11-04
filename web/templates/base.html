@@ -59,8 +59,14 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link{% if '/catalog/' in request.path %} active{% endif %}"
-                       href="{% url 'catalog_location_form' %}"{% if '/catalog/' in request.path %} aria-current="page"{% endif %}>
-                        <i class="ti ti-tags" aria-hidden="true"></i> {% trans "Reference data" %}
+                       href="{% url 'catalog_location_form' %}"{% if request.path == '/catalog/locations/' %} aria-current="page"{% endif %}>
+                        <i class="ti ti-map-pin" aria-hidden="true"></i> {% trans "Locations" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-sub{% if '/catalog/categories/' in request.path %} active{% endif %}"
+                       href="{% url 'catalog_category_form' %}"{% if request.path == '/catalog/categories/' %} aria-current="page"{% endif %}>
+                        <i class="ti ti-tags" aria-hidden="true"></i> {% trans "Categories & colors" %}
                     </a>
                 </li>
             </ul>

@@ -654,3 +654,84 @@ msgstr "Joy o‛chirildi."
 
 msgid "Optional fields are auto-translated when left blank."
 msgstr "Ixtiyoriy maydonlar bo‛sh qoldirilsa avtomatik tarjima qilinadi."
+
+msgid "Colors"
+msgstr "Ranglar"
+
+msgid "Categories & colors"
+msgstr "Kategoriyalar va ranglar"
+
+msgid "Name"
+msgstr "Nomi"
+
+msgid "Emoji"
+msgstr "Emoji"
+
+msgid "Retention (days)"
+msgstr "Saqlash muddati (kun)"
+
+msgid "Usage"
+msgstr "Foydalanish"
+
+msgid "Add category"
+msgstr "Kategoriya qo‛shish"
+
+msgid "Edit category"
+msgstr "Kategoriyani tahrirlash"
+
+msgid "Add color"
+msgstr "Rang qo‛shish"
+
+msgid "Edit color"
+msgstr "Rangni tahrirlash"
+
+msgid "No categories yet."
+msgstr "Hozircha kategoriya yo‛q."
+
+msgid "No colors yet."
+msgstr "Hozircha rang yo‛q."
+
+msgid "Category name is required."
+msgstr "Kategoriya nomi kiritilishi shart."
+
+msgid "An emoji is required."
+msgstr "Emoji kiritilishi shart."
+
+msgid "Retention must be a whole number of days between 1 and 365."
+msgstr "Saqlash muddati 1–365 oralig‛idagi butun son (kun) bo‛lishi kerak."
+
+msgid "This category already exists."
+msgstr "Bunday kategoriya allaqachon mavjud."
+
+msgid "This category is referenced by items or reports and cannot be deleted."
+msgstr "Bu kategoriya buyumlar yoki arizalarda ishlatilgan, o‛chirib bo‛lmaydi."
+
+msgid "This color is referenced by items or reports and cannot be deleted."
+msgstr "Bu rang buyumlar yoki arizalarda ishlatilgan, o‛chirib bo‛lmaydi."
+
+msgid "This color already exists."
+msgstr "Bunday rang allaqachon mavjud."
+
+msgid "Colour name is required."
+msgstr "Rang nomi kiritilishi shart."
+
+msgid "Color created."
+msgstr "Rang qo‛shildi."
+
+msgid "Color updated."
+msgstr "Rang saqlandi."
+
+msgid "Color deleted."
+msgstr "Rang o‛chirildi."
+
+msgid "Category created."
+msgstr "Kategoriya qo‛shildi."
+
+msgid "Category updated."
+msgstr "Kategoriya saqlandi."
+
+msgid "Category deleted."
+msgstr "Kategoriya o‛chirildi."
+
+msgid "The colour list is fixed and used by matching (same color = +3)."
+msgstr "Ranglar ro‛yxati moslashtirishda ishlatiladi (bir xil rang = +3 ball)."

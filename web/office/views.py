@@ -1341,4 +1341,156 @@ def catalog_location_form(request: HttpRequest, location_id: int | None = None) 
 
 @staff_required
 def catalog_category_form(request: HttpRequest, category_id: int | None = None) -> HttpResponse:
-    return render(request, "catalog/category_form.html", {"category_id": category_id})
+    """Reference data — item categories AND fixed colour list (req 7).
+
+    One page, two sections: a category tab (list + trilingual name form +
+    emoji + retention_days) and a color tab (list + trilingual name form).
+    ``category_id`` opens the category form prefilled for editing; colors
+    are edited through ``?color=<pk>`` (prefill) + ``save_color`` POST.
+    Deletes are refused while any report or stored item references the
+    row (all relevant FKs are PROTECT).
+    """
+    lang = _ui_lang(request)
+    category = get_object_or_404(Category, pk=category_id) if category_id else None
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "save").strip()
+
+        # ---- Colors ------------------------------------------------------
+        if action in ("save_color", "delete_color"):
+            if action == "delete_color":
+                color = get_object_or_404(
+                    Color, pk=request.POST.get("color_id") or 0
+                )
+                used = (
+                    LostReport.objects.filter(color=color).exists()
+                    or FoundReport.objects.filter(color=color).exists()
+                    or StoredItem.objects.filter(color=color).exists()
+                )
+                if used:
+                    messages.error(
+                        request, _("This color is referenced by items or reports and cannot be deleted.")
+                    )
+                else:
+                    color.delete()
+                    messages.success(request, _("Color deleted."))
+                return redirect("catalog_category_form")
+
+            name = (request.POST.get("name_uz") or "").strip()
+            if not name:
+                messages.error(request, _("Colour name is required."))
+            else:
+                is_update = bool(request.POST.get("color_id"))
+                updates = {
+                    "name_uz": name,
+                    "name_en": (request.POST.get("name_en") or "").strip(),
+                    "name_ru": (request.POST.get("name_ru") or "").strip(),
+                }
+                target = (
+                    Color.objects.get(pk=request.POST.get("color_id"))
+                    if is_update else Color()
+                )
+                for field, value in updates.items():
+                    setattr(target, field, value)
+                try:
+                    target.save()
+                except IntegrityError:
+                    messages.error(request, _("This color already exists."))
+                else:
+                    messages.success(
+                        request, _("Color updated.") if is_update else _("Color created.")
+                    )
+                return redirect("catalog_category_form")
+
+        # ---- Categories --------------------------------------------------
+        if action == "delete":
+            if category is None:
+                # Row buttons POST the id with action=delete on the list URL.
+                category = get_object_or_404(Category, pk=request.POST.get("category_id") or 0)
+            used = (
+                LostReport.objects.filter(category=category).exists()
+                or FoundReport.objects.filter(category=category).exists()
+                or StoredItem.objects.filter(category=category).exists()
+            )
+            if used:
+                messages.error(
+                    request, _("This category is referenced by items or reports and cannot be deleted.")
+                )
+            else:
+                category.delete()
+                messages.success(request, _("Category deleted."))
+            return redirect("catalog_category_form")
+
+        name = (request.POST.get("name_uz") or "").strip()
+        emoji = ((request.POST.get("emoji") or "").strip() or None)
+        raw_days = (request.POST.get("retention_days") or "").strip()
+        if not name:
+            messages.error(request, _("Category name is required."))
+        elif not emoji:
+            messages.error(request, _("An emoji is required."))
+        elif not raw_days.isdigit() or not (1 <= int(raw_days) <= 365):
+            messages.error(request, _("Retention must be a whole number of days between 1 and 365."))
+        else:
+            duplicate = Category.objects.filter(name_uz=name).exclude(
+                pk=category.pk if category is not None else None
+            )
+            if duplicate.exists():
+                messages.error(request, _("This category already exists."))
+            else:
+                updates = {
+                    "name_uz": name,
+                    "name_en": (request.POST.get("name_en") or "").strip(),
+                    "name_ru": (request.POST.get("name_ru") or "").strip(),
+                    "emoji": emoji,
+                    "retention_days": int(raw_days),
+                }
+                target = category if category is not None else Category()
+                for field, value in updates.items():
+                    setattr(target, field, value)
+                target.save()
+                messages.success(
+                    request, _("Category updated.") if category is not None
+                    else _("Category created.")
+                )
+            return redirect("catalog_category_form")
+        return redirect("catalog_category_form")
+
+    # ---- GET: two render blocks -------------------------------------------
+    color_edit = None
+    raw_color = (request.GET.get("color") or "").strip()
+    if raw_color.isdigit():
+        color_edit = Color.objects.filter(pk=int(raw_color)).first()
+
+    category_rows = [
+        {
+            "category": item,
+            "name": item.localized_name(lang),
+            "stored_count": item.stored_items.count(),
+            "report_count": item.lost_reports.count() + item.found_reports.count(),
+            "edit_url": reverse("catalog_category_edit", args=[item.pk]),
+        }
+        for item in Category.objects.all()
+    ]
+    color_rows = [
+        {
+            "color": item,
+            "name": item.localized_name(lang),
+            "usage_count": (
+                item.stored_items.count() + item.lost_reports.count()
+                + item.found_reports.count()
+            ),
+        }
+        for item in Color.objects.all()
+    ]
+    return render(request, "catalog/category_form.html", {
+        "category_rows": category_rows,
+        "color_rows": color_rows,
+        "total_count": len(category_rows) + len(color_rows),
+        "category": category,
+        "color": color_edit,
+        "category_form_url": (
+            reverse("catalog_category_edit", args=[category.pk])
+            if category is not None else reverse("catalog_category_form")
+        ),
+        "color_form_url": reverse("catalog_category_form"),
+    })

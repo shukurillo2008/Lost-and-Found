@@ -654,3 +654,84 @@ msgstr "Место удалено."
 
 msgid "Optional fields are auto-translated when left blank."
 msgstr "Необязательные поля заполняются автоматически при сохранении пустыми."
+
+msgid "Colors"
+msgstr "Цвета"
+
+msgid "Categories & colors"
+msgstr "Категории и цвета"
+
+msgid "Name"
+msgstr "Название"
+
+msgid "Emoji"
+msgstr "Эмодзи"
+
+msgid "Retention (days)"
+msgstr "Срок хранения (дней)"
+
+msgid "Usage"
+msgstr "Использование"
+
+msgid "Add category"
+msgstr "Добавить категорию"
+
+msgid "Edit category"
+msgstr "Редактирование категории"
+
+msgid "Add color"
+msgstr "Добавить цвет"
+
+msgid "Edit color"
+msgstr "Редактирование цвета"
+
+msgid "No categories yet."
+msgstr "Пока нет категорий."
+
+msgid "No colors yet."
+msgstr "Пока нет цветов."
+
+msgid "Category name is required."
+msgstr "Укажите название категории."
+
+msgid "An emoji is required."
+msgstr "Укажите эмодзи."
+
+msgid "Retention must be a whole number of days between 1 and 365."
+msgstr "Срок хранения — целое число дней от 1 до 365."
+
+msgid "This category already exists."
+msgstr "Такая категория уже есть."
+
+msgid "This category is referenced by items or reports and cannot be deleted."
+msgstr "Эта категория используется во вещах или заявлениях и не может быть удалена."
+
+msgid "This color is referenced by items or reports and cannot be deleted."
+msgstr "Этот цвет используется во вещах или заявлениях и не может быть удалён."
+
+msgid "This color already exists."
+msgstr "Такой цвет уже есть."
+
+msgid "Colour name is required."
+msgstr "Укажите название цвета."
+
+msgid "Color created."
+msgstr "Цвет добавлен."
+
+msgid "Color updated."
+msgstr "Цвет сохранён."
+
+msgid "Color deleted."
+msgstr "Цвет удалён."
+
+msgid "Category created."
+msgstr "Категория добавлена."
+
+msgid "Category updated."
+msgstr "Категория сохранена."
+
+msgid "Category deleted."
+msgstr "Категория удалена."
+
+msgid "The colour list is fixed and used by matching (same color = +3)."
+msgstr "Список цветов используется в сопоставлении (тот же цвет = +3 балла)."

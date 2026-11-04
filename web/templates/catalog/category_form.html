@@ -1,9 +1,253 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Categories" %}{% endblock %}
-{% block page_title %}{% trans "Categories (with retention days)" %}{% endblock %}
+{% block title %}{% trans "Categories & colors" %}{% endblock %}
+{% block page_title %}{% trans "Categories & colors" %}{% endblock %}
 
 {% block content %}
-<!-- Mini milestone TODO: category list + create/edit form (emoji, retention days) -->
-<div class="alert alert-info">{% trans "This page is being built (next mini milestone)." %}</div>
+<div class="row g-3">
+    <!-- ==================== COLUMN 1: CATEGORIES ==================== -->
+    <div class="col-12 col-xl-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h5 fw-bold mb-1">
+                    {% if category %}
+                        <i class="ti ti-pencil" aria-hidden="true"></i> {% trans "Edit category" %}
+                    {% else %}
+                        <i class="ti ti-plus" aria-hidden="true"></i> {% trans "Add category" %}
+                    {% endif %}
+                </h2>
+                <p class="lnf-hint mb-3">{% trans "Optional fields are auto-translated when left blank." %}</p>
+
+                <form method="post" action="{{ category_form_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save">
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-7">
+                            <!-- Trilingual category name (uz canonical, required) -->
+                            <label class="form-label d-flex align-items-center gap-2">
+                                <span>{% trans "Name" %}</span>
+                                <span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                            </label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label visually-hidden" for="catNameUz">{% trans "Name" %} (O‛zbekcha)</label>
+                                    <input class="form-control form-control-sm" id="catNameUz" name="name_uz" maxlength="50"
+                                           value="{{ category.name_uz|default:'' }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label visually-hidden" for="catNameEn">{% trans "Name" %} (English)</label>
+                                    <input class="form-control form-control-sm" id="catNameEn" name="name_en" maxlength="50"
+                                           value="{{ category.name_en|default:'' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label visually-hidden" for="catNameRu">{% trans "Name" %} (Русский)</label>
+                                    <input class="form-control form-control-sm" id="catNameRu" name="name_ru" maxlength="50"
+                                           value="{{ category.name_ru|default:'' }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <label class="form-label" for="catEmoji">{% trans "Emoji" %}</label>
+                            <input class="form-control form-control-sm text-center" id="catEmoji" name="emoji" maxlength="10"
+                                   value="{{ category.emoji|default:'' }}" required>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label" for="catRetention">{% trans "Retention (days)" %}</label>
+                            <input type="number" min="1" max="365" step="1" class="form-control form-control-sm"
+                                   id="catRetention" name="retention_days"
+                                   value="{{ category.retention_days|default:'' }}" required>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="ti ti-device-floppy" aria-hidden="true"></i> {% trans "Save" %}
+                        </button>
+                        {% if category %}
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'catalog_category_form' %}">
+                                {% trans "Cancel" %}
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+
+                <!-- Category list -->
+                <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <span class="text-muted small">{% trans "Categories" %}: {{ category_rows|length }}</span>
+                </div>
+                <div class="table-responsive-lg">
+                    <table class="items-table table table-sm table-hover align-middle mb-0">
+                        <caption class="visually-hidden">{% trans "Categories" %}</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">{% trans "Name" %}</th>
+                                <th scope="col">{% trans "Retention (days)" %}</th>
+                                <th scope="col">{% trans "Usage" %}</th>
+                                <th scope="col">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in category_rows %}
+                            <tr>
+                                <td>{{ row.category.emoji }} {{ row.name }}</td>
+                                <td>{{ row.category.retention_days }}</td>
+                                <td>
+                                    {% if row.stored_count or row.report_count %}
+                                        <span class="badge badge-expiring" title="{% trans 'Usage' %}">{{ row.stored_count }}/{{ row.report_count }}</span>
+                                    {% else %}
+                                        <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ row.edit_url }}"
+                                           aria-label="{% trans 'Edit category' %}">
+                                            <i class="ti ti-pencil" aria-hidden="true"></i>
+                                        </a>
+                                        {% if row.stored_count or row.report_count %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled
+                                                title="{% trans 'This category is referenced by items or reports and cannot be deleted.' %}">
+                                            <i class="ti ti-trash" aria-hidden="true"></i>
+                                        </button>
+                                        {% else %}
+                                        <form method="post" action="{% url 'catalog_category_form' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="category_id" value="{{ row.category.pk }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    aria-label="{% trans 'Delete' %}">
+                                                <i class="ti ti-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-3 text-muted">{% trans "No categories yet." %}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== COLUMN 2: COLORS ==================== -->
+    <div class="col-12 col-xl-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h5 fw-bold mb-1">
+                    {% if color %}
+                        <i class="ti ti-pencil" aria-hidden="true"></i> {% trans "Edit color" %}
+                    {% else %}
+                        <i class="ti ti-plus" aria-hidden="true"></i> {% trans "Add color" %}
+                    {% endif %}
+                </h2>
+                <p class="lnf-hint mb-3">{% trans "The colour list is fixed and used by matching (same color = +3)." %}</p>
+
+                <form method="post" action="{{ color_form_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save_color">
+                    <input type="hidden" name="color_id" value="{{ color.pk|default:'' }}">
+
+                    <div class="row g-2 mb-2 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label d-flex align-items-center gap-2">
+                                <span>{% trans "Name" %}</span>
+                                <span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                            </label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label visually-hidden" for="colNameUz">{% trans "Name" %} (O‛zbekcha)</label>
+                                    <input class="form-control form-control-sm" id="colNameUz" name="name_uz" maxlength="32"
+                                           value="{{ color.name_uz|default:'' }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label visually-hidden" for="colNameEn">{% trans "Name" %} (English)</label>
+                                    <input class="form-control form-control-sm" id="colNameEn" name="name_en" maxlength="32"
+                                           value="{{ color.name_en|default:'' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label visually-hidden" for="colNameRu">{% trans "Name" %} (Русский)</label>
+                                    <input class="form-control form-control-sm" id="colNameRu" name="name_ru" maxlength="32"
+                                           value="{{ color.name_ru|default:'' }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-auto d-flex gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="ti ti-device-floppy" aria-hidden="true"></i> {% trans "Save" %}
+                            </button>
+                            {% if color %}
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'catalog_category_form' %}">
+                                    {% trans "Cancel" %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Color list -->
+                <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <span class="text-muted small">{% trans "Colors" %}: {{ color_rows|length }}</span>
+                </div>
+                <div class="table-responsive-lg">
+                    <table class="items-table table table-sm table-hover align-middle mb-0">
+                        <caption class="visually-hidden">{% trans "Colors" %}</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">{% trans "Name" %}</th>
+                                <th scope="col">{% trans "Usage" %}</th>
+                                <th scope="col">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in color_rows %}
+                            <tr>
+                                <td>{{ row.name }}</td>
+                                <td>
+                                    {% if row.usage_count %}
+                                        <span class="badge badge-expiring">{{ row.usage_count }}</span>
+                                    {% else %}
+                                        <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           href="{% url 'catalog_category_form' %}?color={{ row.color.pk }}"
+                                           aria-label="{% trans 'Edit color' %}">
+                                            <i class="ti ti-pencil" aria-hidden="true"></i>
+                                        </a>
+                                        {% if row.usage_count %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger" disabled
+                                                title="{% trans 'This color is referenced by items or reports and cannot be deleted.' %}">
+                                            <i class="ti ti-trash" aria-hidden="true"></i>
+                                        </button>
+                                        {% else %}
+                                        <form method="post" action="{% url 'catalog_category_form' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete_color">
+                                            <input type="hidden" name="color_id" value="{{ row.color.pk }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    aria-label="{% trans 'Delete' %}">
+                                                <i class="ti ti-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center py-3 text-muted">{% trans "No colors yet." %}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
