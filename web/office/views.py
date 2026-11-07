@@ -21,6 +21,7 @@ from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
+from django.db.models.functions import TruncWeek
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -126,7 +127,11 @@ def dashboard_page(request: HttpRequest) -> HttpResponse:
 
     # --- Metric cards -----------------------------------------------------
     active_items = StoredItem.objects.filter(status="in_storage")
-    expiring = active_items.filter(retention_until__lte=today + timedelta(days=7)).count()
+    # "Expiring" = still valid today but not later than 7 days ahead;
+    # overdue (already expired, awaiting disposal) must not slip in here.
+    expiring = active_items.filter(
+        retention_until__gte=today, retention_until__lte=today + timedelta(days=7)
+    ).count()
     open_reports = LostReport.objects.filter(status="open").count()
     pending_matches = MatchSuggestion.objects.filter(status="suggested").count()
     returned_month = Handover.objects.filter(
@@ -183,6 +188,77 @@ def dashboard_page(request: HttpRequest) -> HttpResponse:
         for entry in top_locations
     ]
 
+    # --- Horizontal bar: storage items grouped by retention outlook --------
+    # Buckets by days left until retention_until: overdue / <=7 / 8-14 /
+    # 15-30 / >30. All in-storage rows participate, so the buckets always
+    # sum up to the "Items in storage" metric above.
+    retention_rows = [
+        {"label": _("Overdue"), "value": 0, "tone": "gold"},
+        {"label": _("Within 7 days"), "value": 0, "tone": "navy"},
+        {"label": _("8-14 days"), "value": 0, "tone": "navy"},
+        {"label": _("15-30 days"), "value": 0, "tone": "navy"},
+        {"label": _("Over 30 days"), "value": 0, "tone": "navy"},
+    ]
+    retention_chart = {
+        "labels": [row["label"] for row in retention_rows],
+        "values": [row["value"] for row in retention_rows],
+        "tones": [row["tone"] for row in retention_rows],
+    }
+    for deadline in active_items.values_list("retention_until", flat=True):
+        days_left = (deadline - today).days
+        if days_left < 0:
+            retention_rows[0]["value"] += 1
+        elif days_left <= 7:
+            retention_rows[1]["value"] += 1
+        elif days_left <= 14:
+            retention_rows[2]["value"] += 1
+        elif days_left <= 30:
+            retention_rows[3]["value"] += 1
+        else:
+            retention_rows[4]["value"] += 1
+    retention_chart["values"] = [row["value"] for row in retention_rows]
+
+    # --- Line: storage flow over the last 8 weeks (received vs. left) ------
+    this_monday = today - timedelta(days=today.weekday())
+    flow_weeks = [this_monday - timedelta(weeks=offset) for offset in range(7, -1, -1)]
+    received_by_week = {
+        row["week"].date(): row["total"]
+        for row in StoredItem.objects.annotate(week=TruncWeek("received_at"))
+        .values("week")
+        .annotate(total=Count("id"))
+    }
+    returned_by_week = {
+        row["week"].date(): row["total"]
+        for row in Handover.objects.annotate(week=TruncWeek("handed_at"))
+        .values("week")
+        .annotate(total=Count("id"))
+    }
+    disposed_by_week = {
+        row["week"].date(): row["total"]
+        for row in ItemStatusLog.objects.filter(new_status="disposed")
+        .annotate(week=TruncWeek("created_at"))
+        .values("week")
+        .annotate(total=Count("id"))
+    }
+    week_rows = [
+        {
+            "label": week.strftime("%d.%m"),
+            "received": received_by_week.get(week, 0),
+            "returned": returned_by_week.get(week, 0),
+            "disposed": disposed_by_week.get(week, 0),
+        }
+        for week in flow_weeks
+    ]
+    flow_chart = {
+        "labels": [row["label"] for row in week_rows],
+        "received": [row["received"] for row in week_rows],
+        "returned": [row["returned"] for row in week_rows],
+        "disposed": [row["disposed"] for row in week_rows],
+        "received_label": _("Received"),
+        "returned_label": _("Returned"),
+        "disposed_label": _("Disposed"),
+    }
+
     return render(request, "dashboard/dashboard.html", {
         "metrics": metrics,
         "category_rows": category_rows,
@@ -195,6 +271,10 @@ def dashboard_page(request: HttpRequest) -> HttpResponse:
             "labels": [row["label"] for row in location_rows],
             "values": [row["value"] for row in location_rows],
         },
+        "retention_rows": retention_rows,
+        "retention_chart": retention_chart,
+        "week_rows": week_rows,
+        "flow_chart": flow_chart,
     })
 
 

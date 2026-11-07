@@ -60,8 +60,45 @@
     </div>
 </div>
 
+<div class="row g-3 mt-lg-2">
+    <div class="col-lg-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h3 class="h6 fw-semibold mb-3">{% trans "Storage flow — the last 8 weeks" %}</h3>
+                <div id="chartBoxByFlow" class="chart-box" data-empty="{% trans 'No data yet' %}">
+                    <canvas id="chartByFlow" role="img"
+                            aria-label="{% trans 'Line chart: items received, returned and disposed over the last 8 weeks' %}"></canvas>
+                </div>
+                <ul class="visually-hidden">
+                    {% for row in week_rows %}
+                    <li>{{ row.label }} — {{ row.received }} / {{ row.returned }} / {{ row.disposed }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h3 class="h6 fw-semibold mb-3">{% trans "Retention outlook" %}</h3>
+                <div id="chartBoxByRetention" class="chart-box" data-empty="{% trans 'No data yet' %}">
+                    <canvas id="chartByRetention" role="img"
+                            aria-label="{% trans 'Bar chart: stored items by retention outlook' %}"></canvas>
+                </div>
+                <ul class="visually-hidden">
+                    {% for row in retention_rows %}
+                    <li>{{ row.label }} — {{ row.value }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{ category_chart|json_script:"category-chart-data" }}
 {{ location_chart|json_script:"location-chart-data" }}
+{{ flow_chart|json_script:"flow-chart-data" }}
+{{ retention_chart|json_script:"retention-chart-data" }}
 {% endblock %}
 
 {% block extra_scripts %}
@@ -164,6 +201,121 @@
         });
     } else if (locCanvas) {
         showEmpty("chartBoxByLocation");
+    }
+
+    // Line — storage flow over the last 8 weeks (received / returned / disposed)
+    var flowCanvas = document.getElementById("chartByFlow");
+    var flowData = flowCanvas ? readData("flow-chart-data") : { labels: [], received: [], returned: [], disposed: [] };
+    var hasFlow = flowCanvas && (flowData.received.length || flowData.returned.length || flowData.disposed.length);
+    if (hasFlow) {
+        new Chart(flowCanvas, {
+            type: "line",
+            data: {
+                labels: flowData.labels,
+                datasets: [
+                    {
+                        label: flowData.received_label || "Received",
+                        data: flowData.received,
+                        borderColor: NAVY,
+                        backgroundColor: NAVY,
+                        tension: 0.35,
+                        pointRadius: 3,
+                        borderWidth: 2
+                    },
+                    {
+                        label: flowData.returned_label || "Returned",
+                        data: flowData.returned,
+                        borderColor: "#4680b8",
+                        backgroundColor: "#4680b8",
+                        tension: 0.35,
+                        pointRadius: 3,
+                        borderWidth: 2
+                    },
+                    {
+                        label: flowData.disposed_label || "Disposed",
+                        data: flowData.disposed,
+                        borderColor: "#c9a86a",
+                        backgroundColor: "#c9a86a",
+                        tension: 0.35,
+                        pointRadius: 3,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: { color: LABEL_COLOR, boxWidth: 12, padding: 14 }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: LABEL_COLOR,
+                            stepSize: 1,
+                            callback: function (value) { return String(Math.round(value)); }
+                        },
+                        grid: { color: "rgba(70, 88, 122, 0.12)" },
+                        border: { display: false }
+                    },
+                    x: {
+                        ticks: { color: LABEL_COLOR },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    } else if (flowCanvas) {
+        showEmpty("chartBoxByFlow");
+    }
+
+    // Horizontal bar — stored items by retention outlook
+    var retCanvas = document.getElementById("chartByRetention");
+    var retData = retCanvas ? readData("retention-chart-data") : { labels: [], values: [], tones: [] };
+    if (retCanvas && retData.labels.length) {
+        var GOLD = "#c9a86a";
+        new Chart(retCanvas, {
+            type: "bar",
+            data: {
+                labels: retData.labels,
+                datasets: [{
+                    data: retData.values,
+                    backgroundColor: (retData.tones || []).map(function (tone) {
+                        return tone === "gold" ? GOLD : NAVY;
+                    }),
+                    borderRadius: 4,
+                    maxBarThickness: 22
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: LABEL_COLOR,
+                            stepSize: 1,
+                            callback: function (value) { return String(Math.round(value)); }
+                        },
+                        grid: { color: "rgba(70, 88, 122, 0.12)" },
+                        border: { display: false }
+                    },
+                    y: {
+                        ticks: { color: LABEL_COLOR },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    } else if (retCanvas) {
+        showEmpty("chartBoxByRetention");
     }
 })();
 </script>

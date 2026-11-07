@@ -735,3 +735,33 @@ msgstr "Kategoriya o‛chirildi."
 
 msgid "The colour list is fixed and used by matching (same color = +3)."
 msgstr "Ranglar ro‛yxati moslashtirishda ishlatiladi (bir xil rang = +3 ball)."
+
+msgid "Storage flow — the last 8 weeks"
+msgstr "Ombor harakati — so‘nggi 8 hafta"
+
+msgid "Line chart: items received, returned and disposed over the last 8 weeks"
+msgstr "Chiziqli diagramma: so‘nggi 8 haftada qabul qilingan, qaytarilgan va utilizatsiya qilingan buyumlar"
+
+msgid "Retention outlook"
+msgstr "Muddat rejasi"
+
+msgid "Bar chart: stored items by retention outlook"
+msgstr "Ustunli diagramma: ombordagi buyumlar muddat rejasi bo‘yicha"
+
+msgid "Overdue"
+msgstr "Muddati o‘tgan"
+
+msgid "Within 7 days"
+msgstr "7 kun ichida"
+
+msgid "8-14 days"
+msgstr "8–14 kun"
+
+msgid "15-30 days"
+msgstr "15–30 kun"
+
+msgid "Over 30 days"
+msgstr "30 kundan ko‘p"
+
+msgid "Received"
+msgstr "Qabul qilingan"

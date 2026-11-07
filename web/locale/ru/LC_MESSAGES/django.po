@@ -735,3 +735,33 @@ msgstr "Категория удалена."
 
 msgid "The colour list is fixed and used by matching (same color = +3)."
 msgstr "Список цветов используется в сопоставлении (тот же цвет = +3 балла)."
+
+msgid "Storage flow — the last 8 weeks"
+msgstr "Движение склада — последние 8 недель"
+
+msgid "Line chart: items received, returned and disposed over the last 8 weeks"
+msgstr "Линейная диаграмма: полученные, возвращённые и утилизированные вещи за последние 8 недель"
+
+msgid "Retention outlook"
+msgstr "Сроки хранения"
+
+msgid "Bar chart: stored items by retention outlook"
+msgstr "Столбчатая диаграмма: вещи на складе по срокам хранения"
+
+msgid "Overdue"
+msgstr "Просрочено"
+
+msgid "Within 7 days"
+msgstr "В течение 7 дней"
+
+msgid "8-14 days"
+msgstr "8–14 дней"
+
+msgid "15-30 days"
+msgstr "15–30 дней"
+
+msgid "Over 30 days"
+msgstr "Более 30 дней"
+
+msgid "Received"
+msgstr "Получено"
