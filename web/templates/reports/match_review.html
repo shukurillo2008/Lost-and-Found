@@ -23,11 +23,21 @@
                     <option value="all" {% if decision == 'all' %}selected{% endif %}>{% trans "All decisions" %}</option>
                 </select>
             </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="filterDateFrom">{% trans "Lost from" %}</label>
+                <input type="date" class="form-control form-control-sm" id="filterDateFrom"
+                       name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="filterDateTo">{% trans "Lost to" %}</label>
+                <input type="date" class="form-control form-control-sm" id="filterDateTo"
+                       name="date_to" value="{{ date_to }}">
+            </div>
             <div class="col-12 col-md-auto d-flex align-items-end">
                 <button type="submit" class="btn btn-sm btn-primary">{% trans "Apply" %}</button>
             </div>
         </div>
-        {% if decision != 'suggested' %}
+        {% if decision != 'suggested' or date_from or date_to %}
         <a class="filter-reset small mt-2 d-inline-block" href="{% url 'reports_match_review' %}">
             <i class="ti ti-x" aria-hidden="true"></i> {% trans "Reset filters" %}
         </a>

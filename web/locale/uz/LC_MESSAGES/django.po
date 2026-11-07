@@ -765,3 +765,18 @@ msgstr "30 kundan ko‘p"
 
 msgid "Received"
 msgstr "Qabul qilingan"
+
+msgid "Received from"
+msgstr "Qabul boshlanishi"
+
+msgid "Received to"
+msgstr "Qabul tugashi"
+
+msgid "Lost from"
+msgstr "Yo‘qotish boshlanishi"
+
+msgid "Lost to"
+msgstr "Yo‘qotish tugashi"
+
+msgid "Enter dates in YYYY-MM-DD format."
+msgstr "Sanalarni YYYY-MM-DD formatida kiriting."

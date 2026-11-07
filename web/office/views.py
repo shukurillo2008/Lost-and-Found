@@ -8,7 +8,7 @@ import csv
 import json
 import re
 import urllib.request
-from datetime import timedelta
+from datetime import date, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -286,6 +286,49 @@ def _ui_lang(request: HttpRequest) -> str:
     """Active interface language restricted to the supported set."""
     lang = getattr(request, "LANGUAGE_CODE", "uz") or "uz"
     return lang if lang in ("uz", "ru", "en") else "uz"
+
+
+_DATE_PARAM = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _parse_date_param(raw: str) -> tuple:
+    """Parse one optional ``date_from``/``date_to`` GET value.
+
+    Returns ``(date, True)`` for a real date or empty input, and
+    ``(None, False)`` for malformed input so the caller can flash a hint
+    and silently drop the broken half of the range.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None, True
+    if _DATE_PARAM.match(raw):
+        try:
+            return date.fromisoformat(raw), True
+        except ValueError:
+            pass
+    return None, False
+
+
+def _date_range_or_flash(request: HttpRequest) -> tuple:
+    """Shared date-range parsing for the list filters.
+
+    Flash + drop only the malformed value; the valid half still filters.
+    """
+    date_from, ok_from = _parse_date_param(request.GET.get("date_from"))
+    date_to, ok_to = _parse_date_param(request.GET.get("date_to"))
+    if not (ok_from and ok_to):
+        messages.error(request, _("Enter dates in YYYY-MM-DD format."))
+        date_from = date_from if ok_from else None
+        date_to = date_to if ok_to else None
+    return date_from, date_to
+
+
+def _echo_range(date_from, date_to) -> dict:
+    """Template echo values for the two date inputs (ISO strings)."""
+    return {
+        "date_from": date_from.isoformat() if date_from else "",
+        "date_to": date_to.isoformat() if date_to else "",
+    }
 
 
 def _status_labels() -> dict:
@@ -659,6 +702,7 @@ def storage_item_list(request: HttpRequest) -> HttpResponse:
     category_id = request.GET.get("category") or ""
     shelf = (request.GET.get("shelf") or "").strip()
     received = request.GET.get("received") or ""
+    date_from, date_to = _date_range_or_flash(request)
 
     items = StoredItem.objects.select_related("category", "color", "received_by", "found_report")
     if status != "all":
@@ -674,12 +718,21 @@ def storage_item_list(request: HttpRequest) -> HttpResponse:
         items = items.filter(category_id=int(category_id))
     if shelf:
         items = items.filter(shelf_code=shelf)
-    if received == "today":
-        items = items.filter(received_at__date=today)
-    elif received == "week":
-        items = items.filter(received_at__date__gte=today - timedelta(days=7))
-    elif received == "month":
-        items = items.filter(received_at__date__gte=today.replace(day=1))
+    # Quick presets apply only when the staff member typed no explicit
+    # date range — the explicit value always wins.
+    if not (date_from or date_to):
+        if received == "today":
+            items = items.filter(received_at__date=today)
+        elif received == "week":
+            items = items.filter(received_at__date__gte=today - timedelta(days=7))
+        elif received == "month":
+            items = items.filter(received_at__date__gte=today.replace(day=1))
+    else:
+        received = ""
+    if date_from:
+        items = items.filter(received_at__date__gte=date_from)
+    if date_to:
+        items = items.filter(received_at__date__lte=date_to)
     if expiring_on:
         items = items.filter(retention_until__lte=today + timedelta(days=7))
 
@@ -710,11 +763,14 @@ def storage_item_list(request: HttpRequest) -> HttpResponse:
         "rows": rows,
         "page_obj": page_obj,
         "total_count": paginator.count,
-        "has_filters": bool(query or category_id or shelf or received or expiring_on or status != "in_storage"),
+        "qstring": qstring,
+        "has_filters": bool(query or category_id or shelf or received or expiring_on
+                            or date_from or date_to or status != "in_storage"),
         "status": status,
         "query": query,
         "expiring_on": expiring_on,
         "received": received,
+        **_echo_range(date_from, date_to),
         "selected_category": category_id,
         "selected_shelf": shelf,
         "category_choices": [
@@ -993,6 +1049,7 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
     query = (request.GET.get("q") or "").strip()
     category_id = request.GET.get("category") or ""
     location_id = request.GET.get("location") or ""
+    date_from, date_to = _date_range_or_flash(request)
 
     reports = (
         LostReport.objects.select_related("category", "color", "reporter", "location")
@@ -1022,6 +1079,10 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
         reports = reports.filter(category_id=int(category_id))
     if location_id.isdigit():
         reports = reports.filter(location_id=int(location_id))
+    if date_from:
+        reports = reports.filter(date_lost__gte=date_from)
+    if date_to:
+        reports = reports.filter(date_lost__lte=date_to)
 
     paginator = Paginator(reports, 25)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -1053,11 +1114,13 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
         "rows": rows,
         "page_obj": page_obj,
         "total_count": paginator.count,
-        "has_filters": bool(query or category_id or location_id or status != "all"),
+        "has_filters": bool(query or category_id or location_id or date_from
+                            or date_to or status != "all"),
         "status": status,
         "query": query,
         "selected_category": category_id,
         "selected_location": location_id,
+        **_echo_range(date_from, date_to),
         "category_choices": [
             (cat.pk, cat.localized_name(lang))
             for cat in Category.objects.order_by("name_uz")
@@ -1290,6 +1353,8 @@ def reports_match_review(request: HttpRequest) -> HttpResponse:
     if decision not in ("suggested", "confirmed", "rejected", "all"):
         decision = "suggested"
 
+    date_from, date_to = _date_range_or_flash(request)
+
     suggestions = MatchSuggestion.objects.select_related(
         "lost_report", "lost_report__reporter",
         "stored_item__category", "stored_item__color",
@@ -1299,6 +1364,10 @@ def reports_match_review(request: HttpRequest) -> HttpResponse:
     )
     if decision != "all":
         suggestions = suggestions.filter(status=decision)
+    if date_from:
+        suggestions = suggestions.filter(lost_report__date_lost__gte=date_from)
+    if date_to:
+        suggestions = suggestions.filter(lost_report__date_lost__lte=date_to)
 
     paginator = Paginator(suggestions, 25)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -1329,6 +1398,7 @@ def reports_match_review(request: HttpRequest) -> HttpResponse:
         "page_obj": page_obj,
         "total_count": paginator.count,
         "decision": decision,
+        **_echo_range(date_from, date_to),
         "qstring": qstring,
         "post_url": request.get_full_path(),
     })

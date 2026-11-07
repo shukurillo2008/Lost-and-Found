@@ -765,3 +765,18 @@ msgstr "Более 30 дней"
 
 msgid "Received"
 msgstr "Получено"
+
+msgid "Received from"
+msgstr "Поступило с"
+
+msgid "Received to"
+msgstr "Поступило по"
+
+msgid "Lost from"
+msgstr "Потеряно с"
+
+msgid "Lost to"
+msgstr "Потеряно по"
+
+msgid "Enter dates in YYYY-MM-DD format."
+msgstr "Укажите даты в формате YYYY-MM-DD."
