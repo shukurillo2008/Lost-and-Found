@@ -102,7 +102,8 @@ class ItemStatusLog(models.Model):
     old_status = models.CharField(max_length=16)
     new_status = models.CharField(max_length=16)
     staff = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="item_status_logs"
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="item_status_logs",
     )
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

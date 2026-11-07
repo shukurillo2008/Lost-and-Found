@@ -748,7 +748,7 @@ def storage_item_detail(request: HttpRequest, item_id: int) -> HttpResponse:
             "new_status": entry.new_status,
             "from": labels.get(entry.old_status, entry.old_status),
             "to": labels.get(entry.new_status, entry.new_status),
-            "staff": entry.staff.get_username(),
+            "staff": entry.staff.get_username() if entry.staff_id else "worker",
             "note": entry.note,
             "created_at": entry.created_at,
         }
