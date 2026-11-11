@@ -106,6 +106,12 @@ STRINGS = {
         "st_expired": "muddati tugagan",
         "st_cancelled": "bekor qilingan",
         "st_registered": "ofisda ro‘yxatda",
+
+        "n_confirmed": "✅ Rahmat! Arizangiz tasdiqlandi. Ofis xodimlari siz bilan bog‘lanadi.",
+        "n_rejected": "❌ Tushunarli. Boshqa mos buyum topilsa, yana xabar beramiz.",
+        "n_already": "ℹ️ Bu taklif allaqachon ko‘rib chiqilgan.",
+        "n_gone": "ℹ️ Bu taklif endi mavjud emas.",
+        "n_not_yours": "⚠️ Bu tugmalar boshqa foydalanuvchining arizasiga tegishli.",
     },
     "ru": {
         "choose_language": "🌐 Пожалуйста, выберите язык:",
@@ -205,6 +211,12 @@ STRINGS = {
         "st_expired": "истекла",
         "st_cancelled": "отменена",
         "st_registered": "в офисе",
+
+        "n_confirmed": "✅ Спасибо! Заявка подтверждена. Сотрудники офиса свяжутся с вами.",
+        "n_rejected": "❌ Понятно. Если найдётся другая подходящая вещь, мы сообщим.",
+        "n_already": "ℹ️ Это предложение уже рассмотрено.",
+        "n_gone": "ℹ️ Это предложение больше не существует.",
+        "n_not_yours": "⚠️ Эти кнопки относятся к заявке другого пользователя.",
     },
     "en": {
         "choose_language": "🌐 Please choose your language:",
@@ -304,6 +316,12 @@ STRINGS = {
         "st_expired": "expired",
         "st_cancelled": "cancelled",
         "st_registered": "registered at office",
+
+        "n_confirmed": "✅ Thank you! Your report is confirmed. Office staff will contact you.",
+        "n_rejected": "❌ Understood. We will let you know if another suitable item appears.",
+        "n_already": "ℹ️ This suggestion has already been reviewed.",
+        "n_gone": "ℹ️ This suggestion no longer exists.",
+        "n_not_yours": "⚠️ These buttons belong to another user's report.",
     },
 }
 

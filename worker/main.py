@@ -30,6 +30,7 @@ django.setup()
 
 from django.utils import timezone  # noqa: E402
 
+from bot_app.notifications import notify_suggestion  # noqa: E402
 from matching.engine import score_breakdown, score_from_breakdown, strong_enough  # noqa: E402
 from matching.models import MatchSuggestion  # noqa: E402
 from reports.models import LostReport  # noqa: E402
@@ -86,7 +87,7 @@ def run_matching_cycle() -> dict:
         StoredItem.objects.filter(status="in_storage")
         .select_related("category", "color", "found_report")
     )
-    stats = {"scored": 0, "suggestions": 0}
+    stats = {"scored": 0, "suggestions": 0, "notified": 0}
     for lost in open_reports:
         existing_ids = set(
             lost.match_suggestions.values_list("stored_item_id", flat=True)
@@ -99,7 +100,7 @@ def run_matching_cycle() -> dict:
             score = score_from_breakdown(breakdown)
             if not strong_enough(score):
                 continue
-            MatchSuggestion.objects.create(
+            suggestion = MatchSuggestion.objects.create(
                 lost_report=lost,
                 stored_item=item,
                 created_by="system",
@@ -108,6 +109,8 @@ def run_matching_cycle() -> dict:
                 status="suggested",
             )
             stats["suggestions"] += 1
+            if notify_suggestion(suggestion):
+                stats["notified"] += 1
             logger.info(
                 "system suggestion: report #%s × item #%s (score %s)",
                 lost.pk, item.pk, score,

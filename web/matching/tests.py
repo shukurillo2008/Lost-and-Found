@@ -28,6 +28,12 @@ from matching.engine import (
     tokenize,
 )
 from matching.models import MatchSuggestion
+from matching.services import (
+    OUTCOME_CONFIRMED,
+    OUTCOME_NOOP,
+    OUTCOME_REJECTED,
+    apply_decision,
+)
 from reports.models import FoundReport, LostReport
 from storage.models import StoredItem
 
@@ -238,3 +244,80 @@ class DuplicateSuggestionGuardsTests(MatchingTestBase):
             MatchSuggestion.objects.filter(lost_report=lost, stored_item=stored).count(),
             1,
         )
+
+
+class SharedDecisionServiceTests(MatchingTestBase):
+    """``matching.services.apply_decision`` powers BOTH the office UI and the
+    Telegram Yes/No answer, so its state machine is locked here."""
+
+    def make_suggestion(self, lost, stored, *, status="suggested"):
+        with disabled():
+            return MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=stored, created_by="system",
+                score=9, score_breakdown={"color": 3}, status=status,
+            )
+
+    def test_staff_confirm_sets_reviewer_and_matches_the_report(self):
+        lost = self.make_lost()
+        suggestion = self.make_suggestion(lost, self.make_stored())
+        self.assertEqual(
+            apply_decision(suggestion, "confirm", reviewer=self.staff),
+            OUTCOME_CONFIRMED,
+        )
+        suggestion.refresh_from_db()
+        lost.refresh_from_db()
+        self.assertEqual(suggestion.status, "confirmed")
+        self.assertEqual(suggestion.reviewed_by, self.staff)
+        self.assertIsNotNone(suggestion.reviewed_at)
+        self.assertEqual(lost.status, "matched")
+
+    def test_reporter_confirm_without_a_staff_reviewer(self):
+        # The bot passes reviewer=None; the timestamp is still recorded.
+        lost = self.make_lost()
+        suggestion = self.make_suggestion(lost, self.make_stored())
+        apply_decision(suggestion, "confirm")
+        suggestion.refresh_from_db()
+        lost.refresh_from_db()
+        self.assertIsNone(suggestion.reviewed_by)
+        self.assertIsNotNone(suggestion.reviewed_at)
+        self.assertEqual(lost.status, "matched")
+
+    def test_confirming_twice_is_a_noop(self):
+        lost = self.make_lost()
+        suggestion = self.make_suggestion(lost, self.make_stored())
+        apply_decision(suggestion, "confirm", reviewer=self.staff)
+        suggestion.refresh_from_db()
+        first_review = suggestion.reviewed_at
+        self.assertEqual(apply_decision(suggestion, "confirm"), OUTCOME_NOOP)
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.reviewed_at, first_review)
+        self.assertEqual(suggestion.status, "confirmed")
+
+    def test_reject_undoes_a_confirmation_and_reopens_the_report(self):
+        lost = self.make_lost()
+        suggestion = self.make_suggestion(lost, self.make_stored())
+        apply_decision(suggestion, "confirm", reviewer=self.staff)
+        self.assertEqual(
+            apply_decision(suggestion, "reject", reviewer=self.staff),
+            OUTCOME_REJECTED,
+        )
+        suggestion.refresh_from_db()
+        lost.refresh_from_db()
+        self.assertEqual(suggestion.status, "rejected")
+        self.assertEqual(lost.status, "open")
+
+    def test_rejecting_one_confirmation_keeps_the_report_matched(self):
+        lost = self.make_lost()
+        first = self.make_suggestion(lost, self.make_stored(title="first item"))
+        second = self.make_suggestion(lost, self.make_stored(title="second item"))
+        apply_decision(first, "confirm", reviewer=self.staff)
+        apply_decision(second, "confirm", reviewer=self.staff)
+        apply_decision(first, "reject", reviewer=self.staff)
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, "matched")
+
+    def test_rejecting_an_already_rejected_row_is_a_noop(self):
+        lost = self.make_lost()
+        suggestion = self.make_suggestion(lost, self.make_stored())
+        apply_decision(suggestion, "reject", reviewer=self.staff)
+        self.assertEqual(apply_decision(suggestion, "reject"), OUTCOME_NOOP)

@@ -780,3 +780,6 @@ msgstr "Yo‘qotish tugashi"
 
 msgid "Enter dates in YYYY-MM-DD format."
 msgstr "Sanalarni YYYY-MM-DD formatida kiriting."
+
+msgid "Answered by the reporter via Telegram"
+msgstr "Arizachi tomonidan Telegram orqali javob berildi"

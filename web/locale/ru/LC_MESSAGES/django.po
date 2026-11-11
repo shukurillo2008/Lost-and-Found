@@ -780,3 +780,6 @@ msgstr "Потеряно по"
 
 msgid "Enter dates in YYYY-MM-DD format."
 msgstr "Укажите даты в формате YYYY-MM-DD."
+
+msgid "Answered by the reporter via Telegram"
+msgstr "Ответ дано заявителем через Telegram"

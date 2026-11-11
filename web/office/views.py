@@ -30,9 +30,11 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import check_for_language, gettext as _
 from django.views.static import serve as static_serve
 
+from bot_app.notifications import notify_handover, notify_suggestion
 from catalog.models import Category, Color, Location
 from matching.engine import score_breakdown, score_from_breakdown
 from matching.models import Handover, MatchSuggestion
+from matching.services import OUTCOME_NOOP, apply_decision
 from reports.models import FoundReport, LostReport
 from storage.models import ItemStatusLog, StoredItem
 
@@ -966,7 +968,7 @@ def storage_handover(request: HttpRequest, item_id: int) -> HttpResponse:
             ))
         else:
             with transaction.atomic():
-                Handover.objects.create(
+                handover = Handover.objects.create(
                     stored_item=item,
                     lost_report=claim_report,
                     receiver_name=receiver_name,
@@ -990,6 +992,9 @@ def storage_handover(request: HttpRequest, item_id: int) -> HttpResponse:
                 if claim_report and claim_report.status in ("open", "matched"):
                     claim_report.status = "returned"
                     claim_report.save()
+            # Tell the claimant the item left the office (no-op without
+            # a bot token / reachable reporter).
+            notify_handover(handover)
             messages.success(request, _("Item returned to the receiver."))
             return redirect("storage_item_detail", item_id=item.pk)
 
@@ -1191,35 +1196,19 @@ def _decide_suggestion(request: HttpRequest, suggestion: MatchSuggestion, action
     """Shared staff decision for one match suggestion.
 
     Used by the report detail page AND the review queue, so both behave
-    identically: a fresh suggestion accepts ``confirm``; rejection works
-    on suggested and confirmed rows (undo of a confirmation); rejecting
-    the last confirmed suggestion drops the report back to ``open``.
+    identically. The state transition itself lives in
+    ``matching.services.apply_decision`` because the Telegram bot applies
+    the reporter's Yes/No answer through the very same function.
     Returns True when a new decision was recorded.
     """
-    report = suggestion.lost_report
-    if action == "confirm" and suggestion.status != "suggested":
+    outcome = apply_decision(suggestion, action, reviewer=request.user)
+    if outcome == OUTCOME_NOOP:
         # Confirming twice is a no-op; only fresh suggestions confirm.
         messages.info(request, _("This suggestion was already reviewed."))
         return False
-    if action == "reject" and suggestion.status == "rejected":
-        messages.info(request, _("This suggestion was already reviewed."))
-        return False
-
-    suggestion.status = "confirmed" if action == "confirm" else "rejected"
-    suggestion.reviewed_by = request.user
-    suggestion.reviewed_at = timezone.now()
-    suggestion.save()
-    if action == "confirm":
-        if report.status == "open":
-            report.status = "matched"
-            report.save()
+    if outcome == "confirmed":
         messages.success(request, _("Match confirmed — the handover form is pre-filled."))
     else:
-        if report.status == "matched" and not report.match_suggestions.filter(
-            status="confirmed"
-        ).exists():
-            report.status = "open"
-            report.save()
         messages.success(request, _("Suggestion rejected."))
     return True
 
@@ -1272,7 +1261,7 @@ def reports_lost_detail(request: HttpRequest, report_id: int) -> HttpResponse:
                     else:
                         breakdown = {"source": "staff_pick", **score_breakdown(report, item)}
                         try:
-                            MatchSuggestion.objects.create(
+                            suggestion = MatchSuggestion.objects.create(
                                 lost_report=report, stored_item=item, created_by="staff",
                                 score=score_from_breakdown(breakdown),
                                 score_breakdown=breakdown, status="suggested",
@@ -1282,6 +1271,9 @@ def reports_lost_detail(request: HttpRequest, report_id: int) -> HttpResponse:
                                 request, _("This item is already suggested for the report.")
                             )
                         else:
+                            # Ask the reporter right away; the bot answer
+                            # feeds the same decision service as this page.
+                            notify_suggestion(suggestion)
                             messages.success(request, _("Suggestion created from the pick."))
             return redirect("reports_lost_detail", report_id=report.pk)
 

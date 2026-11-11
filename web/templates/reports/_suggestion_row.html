@@ -72,14 +72,22 @@
     {% if s.suggestion.status == "confirmed" %}
     <div class="match-card-footer lnf-hint">
         <i class="ti ti-user-check" aria-hidden="true"></i>
+        {% if s.suggestion.reviewed_by %}
         {% trans "Reviewed by" %} {{ s.suggestion.reviewed_by.get_username }}
+        {% else %}
+        {% trans "Answered by the reporter via Telegram" %}
+        {% endif %}
         · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
         — {% trans "this claim pre-fills the handover receiver." %}
     </div>
     {% elif s.suggestion.status == "rejected" %}
     <div class="match-card-footer lnf-hint">
         <i class="ti ti-user-x" aria-hidden="true"></i>
+        {% if s.suggestion.reviewed_by %}
         {% trans "Reviewed by" %} {{ s.suggestion.reviewed_by.get_username }}
+        {% else %}
+        {% trans "Answered by the reporter via Telegram" %}
+        {% endif %}
         · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
     </div>
     {% endif %}

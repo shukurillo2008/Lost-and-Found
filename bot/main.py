@@ -23,7 +23,7 @@ from aiogram import Bot, Dispatcher  # noqa: E402
 from aiogram.client.default import DefaultBotProperties  # noqa: E402
 from aiogram.enums import ParseMode  # noqa: E402
 
-from bot import browse, handlers, wizards  # noqa: E402
+from bot import browse, handlers, notify, wizards  # noqa: E402
 from bot.middleware import BlockedUserMiddleware  # noqa: E402
 
 logger = logging.getLogger("bot")
@@ -59,6 +59,7 @@ def build_dispatcher() -> Dispatcher:
     dispatcher.include_router(handlers.router)
     dispatcher.include_router(wizards.router)
     dispatcher.include_router(browse.router)
+    dispatcher.include_router(notify.router)
     dispatcher.include_router(handlers.fallback_router)
     return dispatcher
 
