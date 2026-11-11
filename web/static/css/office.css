@@ -415,6 +415,34 @@ button:focus-visible,
 .match-review-link { color: var(--lnf-navy); text-decoration: none; font-weight: 600; align-self: flex-start; }
 .match-review-link:hover { text-decoration: underline; }
 
+/* Review card (shared by the report detail page and the match queue) */
+.match-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border: 1px solid #e3e9f4;
+    border-radius: 0.6rem;
+    padding: 0.75rem 0.9rem;
+    background: #fff;
+}
+.match-card-head { display: flex; align-items: flex-start; gap: 0.6rem; }
+.match-card-head .match-row-body { flex: 1 1 auto; }
+.match-card .match-score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+}
+.match-decision { flex-shrink: 0; }
+.match-card-bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.match-card-reasons { flex: 1 1 20rem; min-width: 0; }
+.match-card-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.match-card-footer { border-top: 1px dashed #e3e9f4; padding-top: 0.45rem; }
+.match-group-head { border-bottom: 1px solid #e3e9f4; padding-bottom: 0.55rem; margin-bottom: 0.6rem; }
+
 /* ---- Authentication shell ---------------------------------------------------- */
 .auth-shell {
     min-height: 100vh;

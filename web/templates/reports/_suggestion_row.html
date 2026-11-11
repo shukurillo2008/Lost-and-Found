@@ -1,21 +1,22 @@
 {% load i18n %}
 <!-- Shared review card for one match suggestion (detail page + queue).
-     Context: ``s`` (render row from _suggestion_row), ``action_url`` (POST target). -->
-<div class="match-row p-3 border rounded-3 h-100">
-    <div class="d-flex align-items-start gap-2">
+     Context: ``s`` (render row from _suggestion_row), ``action_url`` (POST target).
+     Layout: head (score · item + meta · decision badge), reasons row with
+     inline decision buttons, dashed-footer for already-reviewed rows. -->
+<div class="match-card">
+    <div class="match-card-head">
         <span class="badge match-score" title="{% trans 'Score' %}">{{ s.suggestion.score }}</span>
         <div class="match-row-body">
-            {% if s.item %}
-            <div class="fw-semibold">
-                <a href="{% url 'storage_item_detail' s.item.pk %}">{{ s.item.shelf_code }} — {{ s.item.title }}</a>
-            </div>
-            <div class="small text-muted">{{ s.item_category }} · {{ s.item_color }} ·
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                {% if s.item %}
+                <a class="item-title" href="{% url 'storage_item_detail' s.item.pk %}">{{ s.item.shelf_code }} — {{ s.item.title }}</a>
                 <span class="badge status-badge status-{{ s.item.status }}">{{ s.item_status_label }}</span>
+                {% else %}
+                <span class="fw-semibold">{% trans "Kept by the finder" %}</span>
+                {% endif %}
             </div>
-            {% else %}
-            <div class="fw-semibold">{% trans "Kept by the finder" %}</div>
-            {% endif %}
-            <div class="small text-muted">
+            <div class="lnf-hint mt-1">
+                {% if s.item %}{{ s.item_category }} · {{ s.item_color }} · {% endif %}
                 {% if s.suggestion.created_by == "user" %}
                     {% trans "Claimed by the reporter" %}
                 {% elif s.suggestion.created_by == "staff" %}
@@ -26,52 +27,60 @@
                 · {{ s.suggestion.created_at|date:"d.m.Y H:i" }}
             </div>
         </div>
-        <span class="badge text-bg-light border ms-auto">{{ s.decision_label }}</span>
+        <span class="badge text-bg-light border match-decision">{{ s.decision_label }}</span>
     </div>
 
-    {% if s.breakdown %}
-    <div class="mt-2">
-        <p class="lnf-hint mb-1">{% trans "Why this score" %}</p>
-        <ul class="list-inline mb-1 d-flex flex-wrap gap-1">
-            {% for b in s.breakdown %}
-            <li class="list-inline-item"><span class="badge text-bg-light border">{{ b.label }} <strong>+{{ b.points }}</strong></span></li>
-            {% endfor %}
-        </ul>
-        {% if s.shared_words %}
-        <p class="lnf-hint mb-0">{% trans "Shared words" %}: {{ s.shared_words|join:", " }}</p>
+    {% if s.breakdown or s.suggestion.status == "suggested" %}
+    <div class="match-card-bottom">
+        {% if s.breakdown %}
+        <div class="match-card-reasons">
+            <span class="lnf-hint">{% trans "Why this score" %}:</span>
+            <ul class="list-inline mb-0 d-inline-flex flex-wrap gap-1">
+                {% for b in s.breakdown %}
+                <li class="list-inline-item"><span class="badge text-bg-light border">{{ b.label }} <strong>+{{ b.points }}</strong></span></li>
+                {% endfor %}
+            </ul>
+            {% if s.shared_words %}
+            <div class="lnf-hint mt-1">{% trans "Shared words" %}: {{ s.shared_words|join:", " }}</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if s.suggestion.status == "suggested" %}
+        <div class="match-card-actions">
+            <form method="post" action="{{ action_url }}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm">
+                <input type="hidden" name="suggestion_id" value="{{ s.suggestion.pk }}">
+                <button type="submit" class="btn btn-sm btn-success">
+                    <i class="ti ti-check" aria-hidden="true"></i> {% trans "Confirm" %}
+                </button>
+            </form>
+            <form method="post" action="{{ action_url }}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="reject">
+                <input type="hidden" name="suggestion_id" value="{{ s.suggestion.pk }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="ti ti-x" aria-hidden="true"></i> {% trans "Reject" %}
+                </button>
+            </form>
+        </div>
         {% endif %}
     </div>
     {% endif %}
 
-    {% if s.suggestion.status == "suggested" %}
-    <div class="d-flex gap-2 mt-3">
-        <form method="post" action="{{ action_url }}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="confirm">
-            <input type="hidden" name="suggestion_id" value="{{ s.suggestion.pk }}">
-            <button type="submit" class="btn btn-sm btn-success">
-                <i class="ti ti-check" aria-hidden="true"></i> {% trans "Confirm" %}
-            </button>
-        </form>
-        <form method="post" action="{{ action_url }}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="reject">
-            <input type="hidden" name="suggestion_id" value="{{ s.suggestion.pk }}">
-            <button type="submit" class="btn btn-sm btn-outline-danger">
-                <i class="ti ti-x" aria-hidden="true"></i> {% trans "Reject" %}
-            </button>
-        </form>
-    </div>
-    {% elif s.suggestion.status == "confirmed" %}
-    <p class="lnf-hint mb-0 mt-2"><i class="ti ti-user-check" aria-hidden="true"></i>
+    {% if s.suggestion.status == "confirmed" %}
+    <div class="match-card-footer lnf-hint">
+        <i class="ti ti-user-check" aria-hidden="true"></i>
         {% trans "Reviewed by" %} {{ s.suggestion.reviewed_by.get_username }}
         · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
         — {% trans "this claim pre-fills the handover receiver." %}
-    </p>
-    {% else %}
-    <p class="lnf-hint mb-0 mt-2"><i class="ti ti-user-x" aria-hidden="true"></i>
+    </div>
+    {% elif s.suggestion.status == "rejected" %}
+    <div class="match-card-footer lnf-hint">
+        <i class="ti ti-user-x" aria-hidden="true"></i>
         {% trans "Reviewed by" %} {{ s.suggestion.reviewed_by.get_username }}
         · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
-    </p>
+    </div>
     {% endif %}
 </div>
