@@ -116,6 +116,9 @@ class LostReport(ReportInternals):
     date_lost = models.DateField()
     photo_file_id = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES_LOST, default="open", db_index=True)
+    # Set when the reporter reopens an auto-expired report from the bot, so
+    # the 90-day expiry clock restarts instead of closing it again instantly.
+    reopened_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = LostReportQuerySet.as_manager()

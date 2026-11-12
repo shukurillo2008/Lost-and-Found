@@ -112,6 +112,10 @@ STRINGS = {
         "n_already": "ℹ️ Bu taklif allaqachon ko‘rib chiqilgan.",
         "n_gone": "ℹ️ Bu taklif endi mavjud emas.",
         "n_not_yours": "⚠️ Bu tugmalar boshqa foydalanuvchining arizasiga tegishli.",
+        "n_reopened": "✅ Ariza qayta ochildi. Mos topilma bo‘lsa, sizga xabar beramiz.",
+        "n_reopen_already": "ℹ️ Bu ariza allaqachon faol yoki yopilgan.",
+        "n_reopen_gone": "ℹ️ Bunday ariza topilmadi.",
+        "n_reopen_not_yours": "⚠️ Bu ariza boshqa foydalanuvchiga tegishli.",
     },
     "ru": {
         "choose_language": "🌐 Пожалуйста, выберите язык:",
@@ -217,6 +221,10 @@ STRINGS = {
         "n_already": "ℹ️ Это предложение уже рассмотрено.",
         "n_gone": "ℹ️ Это предложение больше не существует.",
         "n_not_yours": "⚠️ Эти кнопки относятся к заявке другого пользователя.",
+        "n_reopened": "✅ Заявка снова открыта. Если появится совпадение, мы сообщим.",
+        "n_reopen_already": "ℹ️ Эта заявка уже активна или закрыта.",
+        "n_reopen_gone": "ℹ️ Заявка не найдена.",
+        "n_reopen_not_yours": "⚠️ Эта заявка принадлежит другому пользователю.",
     },
     "en": {
         "choose_language": "🌐 Please choose your language:",
@@ -322,6 +330,10 @@ STRINGS = {
         "n_already": "ℹ️ This suggestion has already been reviewed.",
         "n_gone": "ℹ️ This suggestion no longer exists.",
         "n_not_yours": "⚠️ These buttons belong to another user's report.",
+        "n_reopened": "✅ The report is open again. We will notify you if a match appears.",
+        "n_reopen_already": "ℹ️ This report is already active or closed.",
+        "n_reopen_gone": "ℹ️ Report not found.",
+        "n_reopen_not_yours": "⚠️ This report belongs to another user.",
     },
 }
 

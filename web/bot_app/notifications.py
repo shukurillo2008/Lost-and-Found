@@ -5,7 +5,9 @@ Two events reach the reporter:
 * a **match suggestion** — "is this your item?" with Yes/No inline
   buttons; the answer comes back to ``bot/notify.py`` and is applied
   through the shared ``matching.services.apply_decision``;
-* a **handover** — the item was returned, a plain informational message.
+* a **handover** — the item was returned, a plain informational message;
+* an **expired report** — closed after 90 days with a one-tap reopen
+  button handled by ``bot/notify.py``.
 
 Every function is a safe no-op when the bot token is missing, the
 reporter never used the bot (no ``telegram_id``) or is blocked.
@@ -22,6 +24,7 @@ from matching.services import (
     OUTCOME_REJECTED,
     apply_decision,
 )
+from reports.models import LostReport
 
 from . import telegram_api
 
@@ -29,10 +32,12 @@ logger = logging.getLogger("bot_notify")
 
 CONFIRM_PREFIX = "match-yes:"
 REJECT_PREFIX = "match-no:"
+REOPEN_PREFIX = "reopen:"
 
 OUTCOME_ALREADY = "already"
 OUTCOME_NOT_FOUND = "not_found"
 OUTCOME_NOT_YOURS = "not_yours"
+OUTCOME_REOPENED = "reopened"
 
 TEXTS = {
     "uz": {
@@ -56,6 +61,12 @@ TEXTS = {
             "«{title}» bo‘yicha buyum ofisdan topshirildi ({date}).\n"
             "Savollaringiz bo‘lsa, institut ofisiga murojaat qiling."
         ),
+        "expired": (
+            "⏳ <b>Ariza yopildi</b>\n\n"
+            "«{title}» bo‘yicha arizangiz 90 kundan oshgani uchun avtomatik yopildi.\n\n"
+            "Agar hali ham qidirayotgan bo‘lsangiz, quyidagi tugma bilan qayta oching."
+        ),
+        "reopen_btn": "🔄 Qayta ochish",
     },
     "ru": {
         "suggestion": (
@@ -78,6 +89,12 @@ TEXTS = {
             "Вещь по заявке «{title}» выдана из офиса ({date}).\n"
             "По вопросам обращайтесь в офис кампуса."
         ),
+        "expired": (
+            "⏳ <b>Заявка закрыта</b>\n\n"
+            "Ваша заявка «{title}» автоматически закрыта, так как прошло более 90 дней.\n\n"
+            "Если вы всё ещё ищете вещь, откройте заявку кнопкой ниже."
+        ),
+        "reopen_btn": "🔄 Открыть заново",
     },
     "en": {
         "suggestion": (
@@ -100,6 +117,12 @@ TEXTS = {
             "The item for report “{title}” was handed over at the office ({date}).\n"
             "Contact the campus office if you have any questions."
         ),
+        "expired": (
+            "⏳ <b>Report closed</b>\n\n"
+            "Your report “{title}” was closed automatically because it is older than 90 days.\n\n"
+            "If you are still looking for the item, reopen it with the button below."
+        ),
+        "reopen_btn": "🔄 Reopen report",
     },
 }
 
@@ -216,3 +239,44 @@ def decide_from_bot(telegram_user, suggestion_id: int, action: str) -> str:
     if outcome == OUTCOME_REJECTED:
         return OUTCOME_REJECTED
     return OUTCOME_ALREADY
+
+
+def notify_expired(report: LostReport) -> bool:
+    """Tell the reporter that a 90-day-old report was closed + reopen button."""
+    reporter = report.reporter
+    if not telegram_api.is_enabled() or not _can_reach(reporter):
+        return False
+    lang = _reporter_language(reporter)
+    body = text_for(lang, "expired", title=escape(report.title_in(lang)))
+    keyboard = telegram_api.inline_keyboard([
+        [(text_for(lang, "reopen_btn"), f"{REOPEN_PREFIX}{report.pk}")]
+    ])
+    sent = telegram_api.send_message(reporter.telegram_id, body, keyboard)
+    if sent:
+        logger.info("notified reporter %s about expired report #%s",
+                    reporter.telegram_id, report.pk)
+    return bool(sent)
+
+
+def reopen_from_bot(telegram_user, report_id: int) -> str:
+    """Reopen an auto-expired report from the bot's one-tap button.
+
+    Returns ``reopened`` on success, ``already`` when the report is no
+    longer expired (already reopened / matched / returned), ``not_found``
+    for a deleted row and ``not_yours`` for another Telegram account.
+    """
+    report = LostReport.objects.filter(pk=report_id).only(
+        "pk", "status", "reporter_id"
+    ).first()
+    if report is None:
+        return OUTCOME_NOT_FOUND
+    if report.reporter_id != telegram_user.pk:
+        return OUTCOME_NOT_YOURS
+    if report.status != "expired":
+        return OUTCOME_ALREADY
+    # Queryset update is race-safe and skips the auto-translate save hook;
+    # reopened_at restarts the 90-day expiry clock.
+    updated = LostReport.objects.filter(pk=report.pk, status="expired").update(
+        status="open", reopened_at=timezone.now()
+    )
+    return OUTCOME_REOPENED if updated else OUTCOME_ALREADY

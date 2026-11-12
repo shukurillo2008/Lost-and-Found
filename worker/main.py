@@ -1,17 +1,20 @@
 """Background worker service entrypoint.
 
-Milestone 7: the worker is no longer a heartbeat stub. Every
-``WORKER_INTERVAL_SECONDS`` (default 300) it runs two preserving cycles:
+Every ``WORKER_INTERVAL_SECONDS`` (default 300) the worker runs three
+preserving cycles:
 
-1. ``run_disposal_cycle`` — items still ``in_storage`` whose
-   ``retention_until`` has passed are flipped to ``disposed`` and the
-   transition is written to ``ItemStatusLog`` (``staff`` stays NULL for
-   background actions, ``note`` explains the flip).
-2. ``run_matching_cycle`` — every ``open`` lost report is scored against
+1. ``run_retention_cycle`` — counts in-storage items expiring within 7
+   days (digest feed) and items past their deadline ("ready for
+   disposal"). It NEVER flips a status: disposal is a staff decision
+   (course §4.4).
+2. ``run_expiry_cycle`` — open lost reports older than 90 days become
+   ``expired`` and the reporter gets a one-tap reopen button in the bot.
+3. ``run_matching_cycle`` — every ``open`` lost report is scored against
    every ``in_storage`` item with the shared matching engine; pairs
    scoring above ``MIN_SYSTEM_SCORE`` become ``MatchSuggestion`` rows
-   with ``created_by="system"``. Staff confirm/reject them exactly like
-   user and staff suggestions (no auto-confirm).
+   with ``created_by="system"`` and the reporter is notified. Staff
+   confirm/reject them exactly like user and staff suggestions (no
+   auto-confirm).
 """
 import asyncio
 import logging
@@ -28,13 +31,16 @@ import django
 
 django.setup()
 
-from django.utils import timezone  # noqa: E402
-
-from bot_app.notifications import notify_suggestion  # noqa: E402
+from bot_app.notifications import notify_expired, notify_suggestion  # noqa: E402
 from matching.engine import score_breakdown, score_from_breakdown, strong_enough  # noqa: E402
 from matching.models import MatchSuggestion  # noqa: E402
 from reports.models import LostReport  # noqa: E402
-from storage.models import ItemStatusLog, StoredItem  # noqa: E402
+from storage.models import StoredItem  # noqa: E402
+from storage.retention import (  # noqa: E402
+    EXPIRING_WINDOW_DAYS,
+    expired_lost_reports,
+    retention_summary,
+)
 
 logger = logging.getLogger("worker")
 logging.basicConfig(
@@ -45,30 +51,41 @@ logging.basicConfig(
 HEARTBEAT_SECONDS = 30
 
 
-def run_disposal_cycle() -> dict:
-    """Flip overdue storage items to ``disposed`` and audit the transition.
+def run_retention_cycle() -> dict:
+    """Flag retention states for the daily digest — never flips a status.
 
-    An item is overdue when its ``retention_until`` date has fully passed
-    (deadline day itself is still bookable for a handover).
+    Items past ``retention_until`` stay ``in_storage`` and are only
+    reported as "ready for disposal"; a staff member performs the actual
+    disposal from the item page (course §4.4: status changes only by
+    staff, never automatically).
     """
-    today = timezone.localdate()
-    overdue = StoredItem.objects.filter(
-        status="in_storage", retention_until__lt=today
-    ).select_related("category")
-    stats = {"disposed": 0}
-    for item in overdue:
-        old_status = item.status
-        item.status = "disposed"
-        item.save(update_fields=["status"])
-        ItemStatusLog.objects.create(
-            item=item,
-            old_status=old_status,
-            new_status="disposed",
-            staff=None,
-            note="Retention period ended - disposed automatically by the worker.",
+    summary = retention_summary()
+    logger.info(
+        "retention flags: %s item(s) expiring within %s days, %s ready for disposal",
+        summary["expiring"], EXPIRING_WINDOW_DAYS, summary["ready_for_disposal"],
+    )
+    return summary
+
+
+def run_expiry_cycle() -> dict:
+    """Close open lost reports older than 90 days and notify the reporter.
+
+    The status flip is a queryset update (skips the auto-translate save
+    hook). ``reopened_at`` is untouched here; the bot writes it when the
+    reporter reopens the report, which restarts the 90-day clock.
+    """
+    stats = {"expired": 0, "expired_notified": 0}
+    for report in expired_lost_reports().select_related("reporter"):
+        updated = LostReport.objects.filter(pk=report.pk, status="open").update(
+            status="expired"
         )
-        stats["disposed"] += 1
-        logger.info("disposed item %s (%s)", item.shelf_code, item.title)
+        if not updated:
+            continue
+        report.status = "expired"
+        stats["expired"] += 1
+        if notify_expired(report):
+            stats["expired_notified"] += 1
+        logger.info("expired lost report #%s (%s)", report.pk, report.title)
     return stats
 
 
@@ -119,8 +136,9 @@ def run_matching_cycle() -> dict:
 
 
 def run_work_cycle() -> dict:
-    """One worker pass: disposal first (frees nothing to match), then matching."""
-    stats = run_disposal_cycle()
+    """One worker pass: retention flags, report expiry, then matching."""
+    stats = run_retention_cycle()
+    stats.update(run_expiry_cycle())
     stats.update(run_matching_cycle())
     logger.info("work cycle finished: %s", stats)
     return stats
@@ -132,14 +150,15 @@ async def run():
         "Worker service is running; heartbeat every %ss, work cycle every %ss.",
         HEARTBEAT_SECONDS, interval,
     )
-    last_cycle = 0.0
+    last_cycle = time.monotonic()   # first pass after one full interval
     while True:
         now = time.monotonic()
         if now - last_cycle >= interval:
             try:
-                # Blocking ORM calls in a cron-style worker are fine at this
-                # scale; asyncio only drives the sleep loop here.
-                run_work_cycle()
+                # Django forbids synchronous ORM calls inside a running event
+                # loop, so hand the whole cycle to a worker thread. asyncio
+                # only drives the sleep loop here.
+                await asyncio.to_thread(run_work_cycle)
                 last_cycle = now
             except Exception:
                 logger.exception("work cycle failed; retrying on the next tick")
