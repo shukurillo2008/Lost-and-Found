@@ -1,7 +1,8 @@
 """Background worker service entrypoint.
 
-Every ``WORKER_INTERVAL_SECONDS`` (default 300) the worker runs three
-preserving cycles:
+Every ``WORKER_MATCH_INTERVAL_MINUTES`` (default 10; the legacy
+``WORKER_INTERVAL_SECONDS`` override still wins when set) the worker runs
+three preserving cycles:
 
 1. ``run_retention_cycle`` — counts in-storage items expiring within 7
    days (digest feed) and items past their deadline ("ready for
@@ -15,6 +16,11 @@ preserving cycles:
    with ``created_by="system"`` and the reporter is notified. Staff
    confirm/reject them exactly like user and staff suggestions (no
    auto-confirm).
+
+A fourth job runs on every heartbeat: ``send_daily_digest`` posts the
+office digest to ``OFFICE_GROUP_ID`` once per local day at
+``WORKER_DIGEST_HOUR`` (default 09:00 Asia/Tashkent). ``DigestRun`` is the
+per-date idempotency guard, so restarts cannot double-send.
 """
 import asyncio
 import logging
@@ -31,6 +37,7 @@ import django
 
 django.setup()
 
+from bot_app.digest import digest_hour, send_daily_digest  # noqa: E402
 from bot_app.notifications import notify_expired, notify_suggestion  # noqa: E402
 from matching.engine import score_breakdown, score_from_breakdown, strong_enough  # noqa: E402
 from matching.models import MatchSuggestion  # noqa: E402
@@ -144,11 +151,27 @@ def run_work_cycle() -> dict:
     return stats
 
 
+def _match_interval_seconds() -> int:
+    """Match-cycle period: legacy seconds override, else minutes (default 10)."""
+    raw = os.environ.get("WORKER_INTERVAL_SECONDS")
+    if raw:
+        try:
+            return max(30, int(raw))
+        except (TypeError, ValueError):
+            logger.warning("invalid WORKER_INTERVAL_SECONDS=%r; falling back", raw)
+    try:
+        minutes = int(os.environ.get("WORKER_MATCH_INTERVAL_MINUTES", "10") or 10)
+    except (TypeError, ValueError):
+        minutes = 10
+    return max(60, minutes * 60)
+
+
 async def run():
-    interval = int(os.environ.get("WORKER_INTERVAL_SECONDS", "300") or 300)
+    interval = _match_interval_seconds()
     logger.info(
-        "Worker service is running; heartbeat every %ss, work cycle every %ss.",
-        HEARTBEAT_SECONDS, interval,
+        "Worker service is running; heartbeat every %ss, work cycle every %ss "
+        "(%s min), digest hour %s local.",
+        HEARTBEAT_SECONDS, interval, round(interval / 60), digest_hour(),
     )
     last_cycle = time.monotonic()   # first pass after one full interval
     while True:
@@ -162,6 +185,13 @@ async def run():
                 last_cycle = now
             except Exception:
                 logger.exception("work cycle failed; retrying on the next tick")
+        try:
+            # Idempotent per local date; cheap no-op before the digest hour.
+            digest = await asyncio.to_thread(send_daily_digest)
+            if digest["status"] == "sent":
+                logger.info("daily digest delivered: %s", digest["counts"])
+        except Exception:
+            logger.exception("daily digest failed; retrying on the next tick")
         logger.info("worker heartbeat: alive")
         await asyncio.sleep(HEARTBEAT_SECONDS)
 
