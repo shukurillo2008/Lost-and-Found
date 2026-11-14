@@ -1,28 +1,36 @@
 """Seed the Campus Lost & Found database with realistic demo data.
 
 Idempotent: every row is inserted via get_or_create on a natural key and all
-random selections are driven by ``random.seed(42)``, so re-running produces
-the exact same data and never duplicates anything.
+random selections are driven by ``random.seed(42)`` at the start of every
+run, so re-running (even in one process) produces the exact same data and
+never duplicates anything.
 
 Creates: 3 buildings, 20 areas, 9 categories, 12 colours, 4 office staff
 accounts, 30 Telegram users, 40 lost reports, 30 found reports, 25 stored
 items (18 linked to found reports, 7 desk walk-ins) with dates spread over
 the last two months.
+
+It also creates the **handover history** the demo video needs: six shelf
+items are matched to a fresh lost report, confirmed, handed over with a
+confidential act and flipped to ``returned`` — each with a consistent
+``MatchSuggestion``, ``Handover``, ``ItemStatusLog`` and report status.
+Any returned item left over from an older seed is repaired the same way.
 """
 import random
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.utils import timezone
 
 from bot_app.models import TelegramUser
 from catalog.models import Category, Color, Location
 from catalog import translation
+from matching.engine import score_breakdown, score_from_breakdown
+from matching.models import Handover, MatchSuggestion
 from reports.models import FoundReport, LostReport
-from storage.models import StoredItem
-
-random.seed(42)
+from storage.models import ItemStatusLog, StoredItem
 
 BUILDINGS = {
     "Asosiy bino": ("Главный корпус", "Main Building", [
@@ -132,6 +140,23 @@ LOST_STATUS_PLAN = ["open"] * 24 + ["matched"] * 7 + ["returned"] * 4 + ["expire
 FOUND_STATUS_PLAN = ["open"] * 21 + ["registered"] * 6 + ["returned"] * 2 + ["cancelled"] * 1
 ITEM_STATUS_PLAN = ["in_storage"] * 20 + ["returned"] * 2 + ["disposed"] * 2 + ["transferred"] * 1
 
+# Handover history: fixed shelf codes keep the demo deterministic, while the
+# "repair" pass picks up any returned item created by an older seed run.
+HANDOVER_SHELF_CODES = ("A1-01", "A1-02", "A1-03", "A1-04", "A1-05", "A1-06")
+HANDOVER_DAYS_AGO = (21, 18, 15, 12, 9, 6)
+HANDOVER_NOTES = (
+    "Student ID checked at the office desk.",
+    "Owner described the item before the handover.",
+    "Handover recorded after a confirmed match.",
+    "Receiver signed the paper act.",
+)
+
+
+def aware(day, hour, minute=0):
+    """Aware datetime in the project timezone (Asia/Tashkent)."""
+    return timezone.make_aware(datetime.combine(day, time(hour, minute)))
+
+
 
 def description_for(title, color_name, scene):
     return f"{title}. Looked {color_name} in colour. {scene}"
@@ -160,6 +185,7 @@ class Command(BaseCommand):
     help = "Seed all reference data, users, reports and stored items (idempotent)."
 
     def handle(self, *args, **options):
+        random.seed(42)   # deterministic on every invocation, not just import
         today = timezone.localdate()
 
         self.stdout.write("Seeding reference data ...", ending=" ")
@@ -196,15 +222,26 @@ class Command(BaseCommand):
             items_created = self._seed_stored_items(found_reports, categories, colors)
             self.stdout.write(self.style.SUCCESS("ok"))
 
+            self.stdout.write("Seeding handover history ...", ending=" ")
+            acts_created = self._seed_handover_history(today, users, locations)
+            self.stdout.write(self.style.SUCCESS("ok"))
+
+            self.stdout.write("Seeding status history ...", ending=" ")
+            logs_created = self._seed_status_history(today)
+            self.stdout.write(self.style.SUCCESS("ok"))
+
         self.stdout.write(self.style.SUCCESS(
-            "seed_demo finished. Created in this run: lost=%d found=%d items=%d. Totals:"
-            " locations=%d categories=%d colors=%d staff=%d users=%d lost=%d found=%d stored=%d"
+            "seed_demo finished. Created in this run: lost=%d found=%d items=%d"
+            " acts=%d logs=%d. Totals:"
+            " locations=%d categories=%d colors=%d staff=%d users=%d lost=%d found=%d"
+            " stored=%d handovers=%d suggestions=%d"
             % (
-                lost_created, found_created, items_created,
+                lost_created, found_created, items_created, acts_created, logs_created,
                 Location.objects.count(), Category.objects.count(), Color.objects.count(),
                 User.objects.count(), TelegramUser.objects.count(),
                 LostReport.objects.count(), FoundReport.objects.count(),
-                StoredItem.objects.count(),
+                StoredItem.objects.count(), Handover.objects.count(),
+                MatchSuggestion.objects.count(),
             )
         ))
 
@@ -388,6 +425,10 @@ class Command(BaseCommand):
                 },
             )
             created += was_created
+            # A handover item owns its historical received date and its found
+            # report is already ``returned``; re-seeding must not rewrite them.
+            if Handover.objects.filter(stored_item_id=item.pk).exists():
+                continue
             received_days_back = random.randint(0, 55)
             received_at = timezone.now() - timedelta(days=received_days_back,
                                                      hours=number, minutes=(number * 7) % 60)
@@ -401,4 +442,174 @@ class Command(BaseCommand):
                 FoundReport.objects.filter(pk=found_report.pk).exclude(
                     status=found_status
                 ).update(status=found_status)
+        return created
+
+    def _seed_handover_history(self, today, users, locations):
+        """Create confirmed matches + handover acts with a coherent timeline.
+
+        Each act is atomic: the lost report, confirmed suggestion, handover,
+        status log and the returned flips on the item/found/lost reports all
+        land together or not at all. Re-running skips items that already have
+        a handover, so the command stays idempotent.
+        """
+        created = 0
+        staff_accounts = list(
+            User.objects.filter(username__in=[username for username, _ in STAFF_ACCOUNTS])
+            .order_by("username")
+        )
+        select_related = ("found_report", "found_report__reporter", "category", "color")
+        targets = list(
+            StoredItem.objects.select_related(*select_related)
+            .filter(shelf_code__in=HANDOVER_SHELF_CODES)
+            .order_by("shelf_code")
+        )
+        # Repair a returned item created by an older seed (no act yet).
+        targets += list(
+            StoredItem.objects.select_related(*select_related)
+            .filter(status="returned", handover__isnull=True)
+            .exclude(shelf_code__in=HANDOVER_SHELF_CODES)
+            .order_by("shelf_code")
+        )
+
+        for index, item in enumerate(targets):
+            if item.status not in ("in_storage", "returned"):
+                continue
+            if Handover.objects.filter(stored_item_id=item.pk).exists():
+                continue
+
+            days_ago = (
+                HANDOVER_DAYS_AGO[index]
+                if index < len(HANDOVER_DAYS_AGO)
+                else 4 + (index - len(HANDOVER_DAYS_AGO))
+            )
+            handover_day = today - timedelta(days=days_ago)
+            received_day = handover_day - timedelta(days=2)
+            found_day = received_day - timedelta(days=1)
+            lost_day = found_day - timedelta(days=2)
+            handover_at = aware(handover_day, 14, 30)
+            location = locations[(index * 3) % len(locations)]
+            reporter = users[(index * 5 + 2) % len(users)]
+            if item.found_report_id and reporter.pk == item.found_report.reporter_id:
+                reporter = users[(index * 5 + 3) % len(users)]
+            staff = staff_accounts[index % len(staff_accounts)]
+            note = HANDOVER_NOTES[index % len(HANDOVER_NOTES)]
+
+            with transaction.atomic():
+                if item.found_report_id:
+                    FoundReport.objects.filter(pk=item.found_report_id).update(
+                        date_found=found_day,
+                        location=location,
+                        created_at=aware(found_day, 9),
+                    )
+                StoredItem.objects.filter(pk=item.pk).update(
+                    received_at=aware(received_day, 10),
+                    retention_until=received_day + timedelta(days=item.category.retention_days),
+                )
+                item = StoredItem.objects.select_related(*select_related).get(pk=item.pk)
+
+                description = f"Lost {item.title}. {item.description}"
+                lost, _ = LostReport.objects.get_or_create(
+                    reporter=reporter,
+                    category=item.category,
+                    title=item.title,
+                    date_lost=lost_day,
+                    defaults={
+                        "description": description,
+                        "color": item.color,
+                        "location": location,
+                        "status": "open",
+                    },
+                )
+                lost.description = description
+                lost.color = item.color
+                lost.location = location
+                lost.status = "open"
+                lost.save()
+                LostReport.objects.filter(pk=lost.pk).update(created_at=aware(lost_day, 18))
+
+                breakdown = score_breakdown(lost, item)
+                score = score_from_breakdown(breakdown)
+                reviewed_at = aware(handover_day, 11)
+                suggestion, _ = MatchSuggestion.objects.get_or_create(
+                    lost_report=lost,
+                    stored_item=item,
+                    defaults={
+                        "found_report": item.found_report,
+                        "score": score,
+                        "score_breakdown": breakdown,
+                        "created_by": "system",
+                        "status": "confirmed",
+                        "reviewed_by": staff,
+                        "reviewed_at": reviewed_at,
+                    },
+                )
+                suggestion.found_report = item.found_report
+                suggestion.score = score
+                suggestion.score_breakdown = breakdown
+                suggestion.created_by = "system"
+                suggestion.status = "confirmed"
+                suggestion.reviewed_by = staff
+                suggestion.reviewed_at = reviewed_at
+                suggestion.save()
+                MatchSuggestion.objects.filter(pk=suggestion.pk).update(
+                    created_at=aware(received_day, 15)
+                )
+
+                handover, _ = Handover.objects.get_or_create(
+                    stored_item=item,
+                    defaults={
+                        "lost_report": lost,
+                        "receiver_name": lost.reporter.display_name,
+                        "receiver_id_last4": str((1000 + index * 137) % 10000).zfill(4),
+                        "staff": staff,
+                        "note": note,
+                    },
+                )
+                Handover.objects.filter(pk=handover.pk).update(handed_at=handover_at)
+
+                item.status = "returned"
+                item.save(update_fields=["status"])
+                log, _ = ItemStatusLog.objects.get_or_create(
+                    item=item,
+                    old_status="in_storage",
+                    new_status="returned",
+                    staff=staff,
+                    note=note,
+                    defaults={},
+                )
+                ItemStatusLog.objects.filter(pk=log.pk).update(created_at=handover_at)
+
+                if item.found_report_id:
+                    FoundReport.objects.filter(pk=item.found_report_id).update(
+                        status="returned"
+                    )
+                LostReport.objects.filter(pk=lost.pk).update(status="returned")
+            created += 1
+        return created
+
+    def _seed_status_history(self, today):
+        """Give disposed/transferred items the audit rows the UI expects."""
+        created = 0
+        staff = User.objects.get(username=STAFF_ACCOUNTS[0][0])
+        items = (
+            StoredItem.objects.filter(status__in=("disposed", "transferred"))
+            .filter(status_logs__isnull=True)
+            .select_related("category")
+            .order_by("shelf_code")
+        )
+        for index, item in enumerate(items):
+            if item.status == "disposed":
+                note = "Retention period ended - item disposed by office staff."
+            else:
+                note = "Item transferred to another campus office."
+            log = ItemStatusLog.objects.create(
+                item=item,
+                old_status="in_storage",
+                new_status=item.status,
+                staff=staff,
+                note=note,
+            )
+            when = aware(today - timedelta(days=4 + index), 16)
+            ItemStatusLog.objects.filter(pk=log.pk).update(created_at=when)
+            created += 1
         return created
