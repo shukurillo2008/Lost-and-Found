@@ -6,6 +6,7 @@ page actions (dispose / transfer: in-storage only, note mandatory, audit
 row written), and the handover act closing item, linked found report and
 the confirmed lost claim atomically.
 """
+import csv
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -60,12 +61,13 @@ class StorageTestBase(TestCase):
                 custody="handed_to_office", status=status,
             )
 
-    def make_stored(self, *, found=None):
+    def make_stored(self, *, found=None, shelf_code="SRT-01", status="in_storage"):
         with disabled():
             return StoredItem.objects.create(
                 found_report=found, category=self.cat_long,
                 title="black power bank", description="20000 mah charger",
-                color=self.color, shelf_code="SRT-01", received_by=self.staff,
+                color=self.color, shelf_code=shelf_code, received_by=self.staff,
+                status=status,
             )
 
     def make_lost(self, *, status="open"):
@@ -245,3 +247,72 @@ class HandoverFlowTests(StorageTestBase):
         self.assertEqual(Handover.objects.count(), 1)
         kit["stored"].refresh_from_db()
         self.assertEqual(kit["stored"].status, "returned")
+
+
+class StorageCsvExportTests(StorageTestBase):
+    """The monthly export is status-aware (default: the physical inventory)."""
+
+    def setUp(self):
+        self.client.force_login(self.staff)
+        self.client.cookies["office_language"] = "en"
+        self.in_storage = self.make_stored(shelf_code="SRT-01")
+        self.returned = self.make_stored(shelf_code="SRT-02", status="returned")
+        self.disposed = self.make_stored(shelf_code="SRT-03", status="disposed")
+        self.transferred = self.make_stored(shelf_code="SRT-04", status="transferred")
+
+    def export(self, **params):
+        response = self.client.get(reverse("storage_export_csv"), params)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn("attachment; filename=", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"\xef\xbb\xbf"))
+        text = response.content.decode("utf-8-sig")
+        return list(csv.DictReader(text.splitlines()))
+
+    @staticmethod
+    def shelves(rows):
+        return [row["Shelf"] for row in rows]
+
+    def test_default_export_contains_only_in_storage_items(self):
+        rows = self.export()
+        self.assertEqual(self.shelves(rows), ["SRT-01"])
+        self.assertEqual(rows[0]["Status"], "In storage")
+
+    def test_status_override_selects_one_status(self):
+        self.assertEqual(self.shelves(self.export(status="returned")), ["SRT-02"])
+        self.assertEqual(self.shelves(self.export(status="disposed")), ["SRT-03"])
+        self.assertEqual(self.shelves(self.export(status="transferred")), ["SRT-04"])
+
+    def test_all_statuses_export_every_item(self):
+        rows = self.export(status="all")
+        self.assertEqual(
+            sorted(self.shelves(rows)), ["SRT-01", "SRT-02", "SRT-03", "SRT-04"]
+        )
+
+    def test_invalid_status_falls_back_to_in_storage(self):
+        self.assertEqual(self.shelves(self.export(status="nonsense")), ["SRT-01"])
+
+    def test_malformed_month_falls_back_to_current_month(self):
+        self.assertEqual(self.shelves(self.export(month="not-a-month")), ["SRT-01"])
+
+    def test_month_parameter_selects_the_received_month(self):
+        previous = timezone.now() - timedelta(days=40)
+        StoredItem.objects.filter(pk=self.in_storage.pk).update(received_at=previous)
+        current_rows = self.export()
+        self.assertNotIn("SRT-01", self.shelves(current_rows))
+        previous_rows = self.export(month=previous.strftime("%Y-%m"))
+        self.assertIn("SRT-01", self.shelves(previous_rows))
+
+    def test_list_page_export_link_carries_the_active_status(self):
+        response = self.client.get(reverse("storage_item_list"), {"status": "returned"})
+        self.assertEqual(response.context["export_url"], "/storage/export/?status=returned")
+        response = self.client.get(reverse("storage_item_list"))
+        self.assertEqual(response.context["export_url"], "/storage/export/?status=in_storage")
+
+    def test_export_requires_staff(self):
+        anonymous = Client().get(reverse("storage_export_csv"))
+        self.assertEqual(anonymous.status_code, 302)
+        self.assertIn("/accounts/login/", anonymous["Location"])
+        plain = Client()
+        plain.force_login(self.plain_user)
+        self.assertEqual(plain.get(reverse("storage_export_csv")).status_code, 403)

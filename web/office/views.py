@@ -11,6 +11,7 @@ import urllib.request
 from datetime import date, timedelta
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
@@ -780,7 +781,7 @@ def storage_item_list(request: HttpRequest) -> HttpResponse:
             for cat in Category.objects.order_by("name_uz")
         ],
         "shelves": StoredItem.objects.values_list("shelf_code", flat=True).distinct().order_by("shelf_code")[:100],
-        "export_url": reverse("storage_export_csv"),
+        "export_url": f"{reverse('storage_export_csv')}?{urlencode({'status': status})}",
     })
 
 
@@ -788,25 +789,34 @@ def storage_item_list(request: HttpRequest) -> HttpResponse:
 def storage_export_csv(request: HttpRequest) -> HttpResponse:
     """Requirement 8 — "Export Monthly Inventory (CSV)".
 
-    Exports every item RECEIVED in the chosen month (default: current one),
-    regardless of its current status, with a status column. Headers follow
-    the interface language; the file is UTF-8 with a BOM so Excel opens it
-    correctly, and the file name carries the month it covers.
+    Exports the items RECEIVED in the chosen month (default: current one).
+    The export is **status-aware**: it defaults to the physical inventory
+    (``in_storage``) and accepts ``status=returned|disposed|transferred|all``
+    as an explicit override, so the file matches the list the staff member
+    is looking at. Headers follow the interface language; the file is UTF-8
+    with a BOM so Excel opens it correctly, and the file name carries the
+    month it covers.
     """
     lang = _ui_lang(request)
     today = timezone.localdate()
 
     normalized = request.GET.get("month") or today.strftime("%Y-%m")
     matched = re.fullmatch(r"(\d{4})-(\d{1,2})", normalized)
-    year, month = int(matched.group(1)), int(matched.group(2))
+    if matched:
+        year, month = int(matched.group(1)), int(matched.group(2))
+    else:
+        year, month = today.year, today.month
     if not 1 <= month <= 12 or not 2000 <= year <= 2100:
         year, month = today.year, today.month
 
-    items = (
-        StoredItem.objects.filter(received_at__year=year, received_at__month=month)
-        .select_related("category", "color")
-        .order_by("received_at")
-    )
+    status = request.GET.get("status") or "in_storage"
+    if status not in ("in_storage", "returned", "disposed", "transferred", "all"):
+        status = "in_storage"
+
+    items = StoredItem.objects.filter(received_at__year=year, received_at__month=month)
+    if status != "all":
+        items = items.filter(status=status)
+    items = items.select_related("category", "color").order_by("received_at")
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = (
