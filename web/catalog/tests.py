@@ -70,6 +70,24 @@ class SeedDemoTests(TestCase):
         dates = {handover.handed_at.date() for handover in handovers}
         self.assertGreaterEqual(len(dates), 5)
 
+    def test_seed_fills_every_language_stream(self):
+        """Mock data is trilingual with Uzbek as the primary language."""
+        self.run_seed()
+
+        for model in (LostReport, FoundReport):
+            reports = list(model.objects.all())
+            self.assertTrue(reports)
+            for report in reports:
+                with self.subTest(model=model.__name__, pk=report.pk):
+                    self.assertEqual(report.title, report.title_uz)
+                    for lang in ("uz", "ru", "en"):
+                        self.assertTrue(getattr(report, f"title_{lang}"), f"title_{lang}")
+                        self.assertTrue(
+                            getattr(report, f"description_{lang}"), f"description_{lang}"
+                        )
+                    self.assertNotEqual(report.title_uz, report.title_ru)
+                    self.assertNotEqual(report.title_uz, report.title_en)
+
     def test_seed_is_idempotent_in_one_process(self):
         self.run_seed()
         counts = (

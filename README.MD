@@ -269,9 +269,9 @@ docker compose down -v       # stop containers and delete the database/media vol
 | Areas / locations | 20 |
 | Categories with retention policies | 9 |
 | Colours | 12 |
-| Office staff data owners | 4 |
+| Office staff data owners | 4 (+1 admin from `.env`) |
 | Telegram users | 30 |
-| Lost reports | 40 |
+| Lost reports | 48 (40 seeded reports + 8 claim reports for handover history) |
 | Found reports | 30 |
 | Stored items | 25 (18 linked to found reports, 7 walk-ins) |
 | Handover acts | 8 |
@@ -280,7 +280,11 @@ docker compose down -v       # stop containers and delete the database/media vol
 
 Report dates are spread over the last two months so the dashboard charts and date filters show meaningful data. The handover history is internally consistent: each returned item has a confirmed suggestion, a handover act, a status-log entry and the matching lost/found report statuses.
 
+The mock data is **fully trilingual**. Every lost and found report is generated in Uzbek (the primary language) and stores real Russian and English translations in its `title_uz/_ru/_en` and `description_uz/_ru/_en` streams, so the language tabs on the report pages show three genuinely different texts instead of the same English string three times. Colours, locations and categories are likewise seeded in all three languages, and office notes (handover acts, disposal/transfer audit entries) are written in Uzbek.
+
 The four `office.*` accounts are data owners for the seeded history. They are not intended as login accounts; sign in with the superuser created from `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`.
+
+After the first worker matching cycle, the seeded open reports also get a handful of **pending system suggestions**, so the match review queue is populated for the demo. Seeded Telegram users have fake ids, so notifications to them are rejected by Telegram and logged as warnings without breaking the cycle.
 
 ---
 
@@ -715,6 +719,7 @@ Known limitations:
 - SQLite is a single-host database; the project is designed for one Docker host, not horizontal scaling.
 - The bot uses long polling, so only one bot process may run per token.
 - Automatic translation requires network access; set `AUTO_TRANSLATE=False` for fully offline operation.
+- Stored items hold a single `title`/`description` pair (no translation columns), so shelf records are stored in the primary language, Uzbek; reports themselves are fully trilingual.
 - The public web deployment is not published yet; the local Docker setup is fully functional.
 
 ---

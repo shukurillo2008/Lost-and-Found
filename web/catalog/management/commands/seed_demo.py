@@ -106,34 +106,133 @@ STAFF_ACCOUNTS = [
     ("office.bekzod", "Bekzod Rashidov"),
 ]
 
+# Item titles in all three interface languages: (uz, ru, en). Uzbek is the
+# canonical/primary language — the stored `title` column gets the Uzbek text
+# and the `title_uz/_ru/_en` streams are filled explicitly by the seeder.
 TITLES = {
-    "Hujjatlar": ["Student ID card", "International passport", "Bus pass", "Course certificate", "Insurance card"],
-    "Kalitlar": ["Dorm key ring", "Backpack keychain", "Car keys", "Office key with lanyard"],
-    "Elektronika": ["Wireless earbuds", "Charging cable", "Laptop charger", "USB flash drive", "Smartwatch"],
-    "Kiyimlar": ["Black scarf", "Sports cap", "Winter gloves", "Earphone case", "Warm jacket"],
-    "Sumkalar": ["Leather backpack", "Shopping bag", "Shoulder bag", "Transparent pencil holder"],
-    "Butilka va idishlar": ["Steel water bottle", "Lunch container", "Coffee thermos", "Glass water jar"],
-    "Kitob va kantselyariya": ["Statistics notebook", "Data structures textbook", "Math pen case", "Art folder"],
-    "Taqinchoqlar va aksessuarlar": ["Silver chain bracelet", "Gold ring", "Reading glasses", "Analog wristwatch", "Hair clip"],
-    "Boshqalar": ["Compact umbrella", "Chess board", "Bicycle helmet", "Yoga mat"],
+    "Hujjatlar": [
+        ("Talaba guvohnomasi", "Студенческий билет", "Student ID card"),
+        ("Xorijiy pasport", "Загранпаспорт", "International passport"),
+        ("Avtobus kartasi", "Транспортная карта", "Bus pass"),
+        ("Kurs sertifikati", "Сертификат курса", "Course certificate"),
+        ("Sug‘urta kartasi", "Страховая карта", "Insurance card"),
+    ],
+    "Kalitlar": [
+        ("Yotoqxona kalitlari", "Ключи от общежития", "Dorm key ring"),
+        ("Ryukzak kalitchasi", "Брелок для рюкзака", "Backpack keychain"),
+        ("Mashina kalitlari", "Ключи от машины", "Car keys"),
+        ("Ofis kaliti", "Офисный ключ", "Office key with lanyard"),
+    ],
+    "Elektronika": [
+        ("Simsiz quloqchin", "Беспроводные наушники", "Wireless earbuds"),
+        ("Quvvatlash kabeli", "Кабель для зарядки", "Charging cable"),
+        ("Noutbuk quvvatlagichi", "Зарядное устройство для ноутбука", "Laptop charger"),
+        ("USB flesh xotira", "USB-флешка", "USB flash drive"),
+        ("Aqlli soat", "Умные часы", "Smartwatch"),
+    ],
+    "Kiyimlar": [
+        ("Qora ro‘mol", "Чёрный платок", "Black scarf"),
+        ("Sport kepka", "Спортивная кепка", "Sports cap"),
+        ("Qishki qo‘lqop", "Зимние перчатки", "Winter gloves"),
+        ("Quloqchin qutisi", "Футляр для наушников", "Earphone case"),
+        ("Issiq kurtka", "Тёплая куртка", "Warm jacket"),
+    ],
+    "Sumkalar": [
+        ("Charm ryukzak", "Кожаный рюкзак", "Leather backpack"),
+        ("Xarid paketi", "Пакет для покупок", "Shopping bag"),
+        ("Yelka sumkasi", "Сумка на плечо", "Shoulder bag"),
+        ("Shaffof qalamdon", "Прозрачный пенал", "Transparent pencil holder"),
+    ],
+    "Butilka va idishlar": [
+        ("Po‘lat suv idishi", "Стальная бутылка для воды", "Steel water bottle"),
+        ("Ovqat idishi", "Контейнер для еды", "Lunch container"),
+        ("Kofe termosi", "Термос для кофе", "Coffee thermos"),
+        ("Shisha suv bankasi", "Стеклянная банка для воды", "Glass water jar"),
+    ],
+    "Kitob va kantselyariya": [
+        ("Statistika daftari", "Тетрадь по статистике", "Statistics notebook"),
+        ("Ma’lumotlar tuzilmasi darsligi", "Учебник по структурам данных", "Data structures textbook"),
+        ("Matematika qalamdoni", "Пенал для математики", "Math pen case"),
+        ("Rasm papkasi", "Папка для рисования", "Art folder"),
+    ],
+    "Taqinchoqlar va aksessuarlar": [
+        ("Kumush bilaguzuk", "Серебряный браслет", "Silver chain bracelet"),
+        ("Oltin uzuk", "Золотое кольцо", "Gold ring"),
+        ("Ko‘rish ko‘zoynagi", "Очки для чтения", "Reading glasses"),
+        ("Qo‘l soati", "Наручные часы", "Analog wristwatch"),
+        ("Soch qisqichi", "Заколка для волос", "Hair clip"),
+    ],
+    "Boshqalar": [
+        ("Yig‘ma soyabon", "Складной зонт", "Compact umbrella"),
+        ("Shaxmat taxtasi", "Шахматная доска", "Chess board"),
+        ("Velosiped dubulg‘asi", "Велошлем", "Bicycle helmet"),
+        ("Yoga gilami", "Коврик для йоги", "Yoga mat"),
+    ],
+}
+
+# Uzbek title -> full trilingual triple (used to rebuild related records).
+TITLE_BY_UZ = {
+    title_uz: (title_uz, title_ru, title_en)
+    for titles in TITLES.values()
+    for title_uz, title_ru, title_en in titles
 }
 
 BRANDS = ["Xiaomi", "Samsung", "Apple", "Casio", "Adidas", "Nike", "Anker", "Zara", "Lotus", "Fujifilm", "Candy", "Mint"]
 
+# `brand_marks` is a single free-text column (no translation streams), so it is
+# written in the primary language.
 MARKS = [
-    "engraved initials", "black-and-white sticker", "cracked corner",
-    "red tassel", "worn leather strap", "team logo print", "no visible marks",
+    "o‘yilgan bosh harflar", "qora-oq stiker", "singan burchak",
+    "qizil popuk", "eskirgan charm tasma", "jamoa logotipi", "ko‘rinadigan belgisi yo‘q",
 ]
 
-SCENES = [
-    "Slipped out while I was running to the bus.",
-    "Left it on the desk after the lecture.",
-    "Probably dropped it in the corridor.",
-    "Forgot it on the bench outside.",
-    "Misplaced it somewhere between the two floors.",
-    "It disappeared from the locker.",
-    "Last seen in this area, found nothing on my way back.",
-    "Left it next to the vending machines.",
+# Report descriptions are built per language: (uz, ru, en).
+SCENES_LOST = [
+    ("Avtobusga yugurib ketayotganda tushib qolgan.",
+     "Выпал, когда я бежал(а) на автобус.",
+     "Slipped out while I was running to the bus."),
+    ("Ma’ruzadan keyin stol ustida qolib ketgan.",
+     "Оставил(а) на столе после лекции.",
+     "Left it on the desk after the lecture."),
+    ("Koridorda tushirib qo‘ygan bo‘lishim mumkin.",
+     "Скорее всего, выронил(а) в коридоре.",
+     "Probably dropped it in the corridor."),
+    ("Tashqaridagi skameykada unutib qoldirganman.",
+     "Забыл(а) на скамейке на улице.",
+     "Forgot it on the bench outside."),
+    ("Ikki qavat orasida qayerdadir qoldirib ketganman.",
+     "Оставил(а) где-то между двумя этажами.",
+     "Misplaced it somewhere between the two floors."),
+    ("Shkafdan yo‘qolib qolgan.",
+     "Пропал из шкафчика.",
+     "It disappeared from the locker."),
+    ("Oxirgi marta shu joyda ko‘rganman, qaytishda topa olmadim.",
+     "В последний раз видел(а) здесь, на обратном пути не нашёл(ла).",
+     "Last seen in this area, found nothing on my way back."),
+    ("Avtomatlar yonida qoldirib ketganman.",
+     "Оставил(а) рядом с автоматами.",
+     "Left it next to the vending machines."),
+]
+
+SCENES_FOUND = [
+    ("Topib oldim va ofisga topshirdim.",
+     "Нашёл(ла) и сдал(а) в офис.",
+     "I found it and handed it in at the office."),
+    ("Skameykada yotgan edi.",
+     "Лежал на скамейке.",
+     "It was lying on the bench."),
+    ("Darsdan keyin stol ustida qolib ketgan.",
+     "Остался на столе после занятия.",
+     "It was left on the desk after the class."),
+    ("Koridorda ko‘rib qoldim.",
+     "Заметил(а) в коридоре.",
+     "I spotted it in the corridor."),
+    ("Avtomatlar yonida turgan edi.",
+     "Стоял рядом с автоматами.",
+     "It was next to the vending machines."),
+    ("Zinapoyada topdim.",
+     "Нашёл(ла) на лестнице.",
+     "I found it on the stairs."),
 ]
 
 LOST_STATUS_PLAN = ["open"] * 24 + ["matched"] * 7 + ["returned"] * 4 + ["expired"] * 4 + ["cancelled"] * 1
@@ -145,10 +244,10 @@ ITEM_STATUS_PLAN = ["in_storage"] * 20 + ["returned"] * 2 + ["disposed"] * 2 + [
 HANDOVER_SHELF_CODES = ("A1-01", "A1-02", "A1-03", "A1-04", "A1-05", "A1-06")
 HANDOVER_DAYS_AGO = (21, 18, 15, 12, 9, 6)
 HANDOVER_NOTES = (
-    "Student ID checked at the office desk.",
-    "Owner described the item before the handover.",
-    "Handover recorded after a confirmed match.",
-    "Receiver signed the paper act.",
+    "Talaba guvohnomasi ofisda tekshirildi.",
+    "Egasi buyumni oldindan ta’riflab berdi.",
+    "Qaytarish tasdiqlangan moslikdan keyin rasmiylashtirildi.",
+    "Qabul qiluvchi qog‘oz dalolatnomani imzoladi.",
 )
 
 
@@ -158,8 +257,34 @@ def aware(day, hour, minute=0):
 
 
 
-def description_for(title, color_name, scene):
-    return f"{title}. Looked {color_name} in colour. {scene}"
+def description_variants(title, color, scene):
+    """Build the report description in all three languages.
+
+    ``title`` and ``scene`` are ``(uz, ru, en)`` triples; the colour names come
+    from the reference table's own translation columns. Uzbek is canonical.
+    """
+    title_uz, title_ru, title_en = title
+    scene_uz, scene_ru, scene_en = scene
+    return {
+        "uz": f"{title_uz}. Rangi — {color.name_uz.lower()}. {scene_uz}",
+        "ru": f"{title_ru}. Цвет — {(color.name_ru or color.name_uz).lower()}. {scene_ru}",
+        "en": f"{title_en}. Colour — {(color.name_en or color.name_uz).lower()}. {scene_en}",
+    }
+
+
+def title_streams(title):
+    """``(uz, ru, en)`` triple -> ``title_uz/_ru/_en`` keyword dict."""
+    title_uz, title_ru, title_en = title
+    return {"title_uz": title_uz, "title_ru": title_ru, "title_en": title_en}
+
+
+def description_streams(descriptions):
+    """Language dict -> ``description_uz/_ru/_en`` keyword dict."""
+    return {
+        "description_uz": descriptions["uz"],
+        "description_ru": descriptions["ru"],
+        "description_en": descriptions["en"],
+    }
 
 
 def brand_marks_for(brand, mark):
@@ -339,24 +464,31 @@ class Command(BaseCommand):
             reporter = random.choice(users)
             title = random.choice(TITLES[category.name_uz])
             color = random.choice(colors)
-            scene = random.choice(SCENES)
+            scene = random.choice(SCENES_LOST)
             brand = random.choice(BRANDS)
             mark = random.choice(MARKS)
             status = LOST_STATUS_PLAN[number % len(LOST_STATUS_PLAN)]
             location = None if number % 5 == 0 else random.choice(locations)
+            descriptions = description_variants(title, color, scene)
+            title_uz, title_ru, title_en = title
             date_lost = pick_unique_date(
-                today, 59, lambda d,rid=reporter.id,t=title: (rid, t, d), used_keys
+                today, 59, lambda d,rid=reporter.id,t=title_uz: (rid, t, d), used_keys
             )
-            _, was_created = LostReport.objects.get_or_create(
-                reporter=reporter, category=category, title=title,
+            report, was_created = LostReport.objects.get_or_create(
+                reporter=reporter, category=category, title=title_uz,
                 defaults={
-                    "description": description_for(title, color.localized_name("en"), scene),
+                    "description": descriptions["uz"],
                     "color": color,
                     "brand_marks": brand_marks_for(brand, mark),
                     "location": location,
                     "date_lost": date_lost,
                     "status": status,
                 },
+            )
+            # Streams are written with queryset.update() so the model's
+            # reporter-language sync cannot overwrite them.
+            LostReport.objects.filter(pk=report.pk).update(
+                **title_streams(title), **description_streams(descriptions)
             )
             created += was_created
         return created
@@ -369,20 +501,22 @@ class Command(BaseCommand):
             reporter = random.choice(users)
             title = random.choice(TITLES[category.name_uz])
             color = random.choice(colors)
-            scene = random.choice(SCENES)
+            scene = random.choice(SCENES_FOUND)
             brand = random.choice(BRANDS)
             mark = random.choice(MARKS)
             status = FOUND_STATUS_PLAN[number % len(FOUND_STATUS_PLAN)]
             location = random.choice(locations)
             custody = "handed_to_office" if number % 3 != 2 else "kept_by_finder"
             finder_contact_allowed = number % 4 == 0
+            descriptions = description_variants(title, color, scene)
+            title_uz, title_ru, title_en = title
             date_found = pick_unique_date(
-                today, 59, lambda d,rid=reporter.id,t=title: (rid, t, d), used_keys
+                today, 59, lambda d,rid=reporter.id,t=title_uz: (rid, t, d), used_keys
             )
-            _, was_created = FoundReport.objects.get_or_create(
-                reporter=reporter, category=category, title=title,
+            report, was_created = FoundReport.objects.get_or_create(
+                reporter=reporter, category=category, title=title_uz,
                 defaults={
-                    "description": description_for(title, color.localized_name("en"), scene),
+                    "description": descriptions["uz"],
                     "color": color,
                     "location": location,
                     "date_found": date_found,
@@ -391,6 +525,9 @@ class Command(BaseCommand):
                     "finder_contact_allowed": finder_contact_allowed,
                     "status": status,
                 },
+            )
+            FoundReport.objects.filter(pk=report.pk).update(
+                **title_streams(title), **description_streams(descriptions)
             )
             created += was_created
         return created
@@ -406,19 +543,21 @@ class Command(BaseCommand):
             block_number = (number // 9) + 1
             compartment = (number % 9) + 1
             shelf_code = f"{letter}{block_number}-{compartment:02d}"
-            title = all_titles[number % len(all_titles)]
+            title_uz, title_ru, title_en = all_titles[number % len(all_titles)]
             category = categories[number % len(categories)]
             status = ITEM_STATUS_PLAN[number % len(ITEM_STATUS_PLAN)]
             found_report = linked_found_reports[number] if number < 18 else None
             item_color = random.choice(colors)
+            # StoredItem has a single title/description column, so the office
+            # shelf records use the primary language (Uzbek).
             item, was_created = StoredItem.objects.get_or_create(
-                title=title, shelf_code=shelf_code,
+                title=title_uz, shelf_code=shelf_code,
                 defaults={
                     "found_report": found_report,
                     "category": category,
-                    "description": description_for(
-                        title, item_color.localized_name("en"), random.choice(SCENES)
-                    ),
+                    "description": description_variants(
+                        (title_uz, title_ru, title_en), item_color, random.choice(SCENES_FOUND)
+                    )["uz"],
                     "color": item_color,
                     "received_by": User.objects.get(username=STAFF_ACCOUNTS[number % 4][0]),
                     "status": status,
@@ -507,25 +646,31 @@ class Command(BaseCommand):
                 )
                 item = StoredItem.objects.select_related(*select_related).get(pk=item.pk)
 
-                description = f"Lost {item.title}. {item.description}"
+                title = TITLE_BY_UZ.get(item.title, (item.title, item.title, item.title))
+                descriptions = description_variants(
+                    title, item.color, SCENES_LOST[index % len(SCENES_LOST)]
+                )
                 lost, _ = LostReport.objects.get_or_create(
                     reporter=reporter,
                     category=item.category,
                     title=item.title,
                     date_lost=lost_day,
                     defaults={
-                        "description": description,
+                        "description": descriptions["uz"],
                         "color": item.color,
                         "location": location,
                         "status": "open",
                     },
                 )
-                lost.description = description
+                lost.description = descriptions["uz"]
                 lost.color = item.color
                 lost.location = location
                 lost.status = "open"
                 lost.save()
-                LostReport.objects.filter(pk=lost.pk).update(created_at=aware(lost_day, 18))
+                LostReport.objects.filter(pk=lost.pk).update(
+                    created_at=aware(lost_day, 18),
+                    **title_streams(title), **description_streams(descriptions),
+                )
 
                 breakdown = score_breakdown(lost, item)
                 score = score_from_breakdown(breakdown)
@@ -599,9 +744,9 @@ class Command(BaseCommand):
         )
         for index, item in enumerate(items):
             if item.status == "disposed":
-                note = "Retention period ended - item disposed by office staff."
+                note = "Saqlash muddati tugadi — buyum ofis xodimlari tomonidan utilizatsiya qilindi."
             else:
-                note = "Item transferred to another campus office."
+                note = "Buyum boshqa kampus ofisiga o‘tkazildi."
             log = ItemStatusLog.objects.create(
                 item=item,
                 old_status="in_storage",

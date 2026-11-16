@@ -12,13 +12,13 @@
             <div class="card-body p-4">
                 <div class="detail-photo-shell mb-3">
                     {% if photo_url %}
-                        <img class="detail-photo" src="{{ photo_url }}" alt="{{ report.title }}" width="640" height="400">
+                        <img class="detail-photo" src="{{ photo_url }}" alt="{{ title_ui }}" width="640" height="400">
                     {% else %}
                         <i class="ti ti-photo" aria-hidden="true"></i>
                     {% endif %}
                 </div>
 
-                <h2 class="h5 fw-bold mb-2">{{ report.title }}</h2>
+                <h2 class="h5 fw-bold mb-2">{{ title_ui }}</h2>
                 <p class="mb-3"><span class="badge status-badge status-{{ report.status }}">{{ status_label }}</span></p>
 
                 <dl class="detail-list mb-0">
@@ -43,7 +43,7 @@
                 </dl>
 
                 <h3 class="detail-section-label mt-4">{% trans "Description" %}</h3>
-                <p class="text-muted mb-0 lh-base">{{ report.description|linebreaksbr }}</p>
+                <p class="text-muted mb-0 lh-base">{{ description_ui|linebreaksbr }}</p>
 
                 <!-- Title as written in the three report languages -->
                 <div class="report-titles mt-3">

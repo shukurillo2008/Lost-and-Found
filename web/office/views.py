@@ -1312,6 +1312,10 @@ def reports_lost_detail(request: HttpRequest, report_id: int) -> HttpResponse:
         "location_name": report.location.display(lang) if report.location else "",
         "reporter_name": report.reporter.display_name,
         "photo_url": reverse("report_photo", args=["lost", report.pk]) if report.photo_file_id else None,
+        # The page heading and lead text follow the UI language, exactly like
+        # the list rows (blank streams fall back to the canonical text).
+        "title_ui": report.title_in(lang),
+        "description_ui": report.description_in(lang),
         "title_streams": {
             code: report.title_in(code) for code in ("uz", "en", "ru")
         },
