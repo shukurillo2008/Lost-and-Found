@@ -13,16 +13,22 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Category, Color, Location
 from catalog.translation import disabled
 from matching.models import MatchSuggestion
-from reports.models import LostReport
+from reports.models import FoundReport, LostReport
 from storage.models import StoredItem
 
 from .digest import MAX_ATTEMPTS, build_digest, digest_hour, send_daily_digest
-from .models import DigestRun
+from .models import DigestRun, TelegramUser
+from .notifications import (
+    match_confirmed_text,
+    match_confirmed_text_for,
+    notify_match_confirmed,
+)
 
 OFFICE_SETTINGS = {"BOT_TOKEN": "123:test", "OFFICE_GROUP_ID": "-1001234567890"}
 
@@ -219,3 +225,123 @@ class DigestSendTests(DigestTestBase):
         self.assertEqual(result["status"], "sent")
         self.assertEqual(result["sent_on"], expected.isoformat())
         self.assertTrue(DigestRun.objects.filter(sent_on=expected).exists())
+
+NOTIFY_SETTINGS = {"BOT_TOKEN": "123:test"}
+
+
+@override_settings(**NOTIFY_SETTINGS)
+class MatchConfirmedNotificationTests(TestCase):
+    """A confirmed match must reach the lost reporter with the finder's
+    contact details (username always, phone when shared), but only when the
+    finder opted in to contact sharing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.staff = User.objects.create_user("notify_staff", password="pw", is_staff=True)
+        with disabled():
+            cls.finder = TelegramUser.objects.create(
+                telegram_id=910001, username="finder_user", phone="+998901112233",
+                display_name="Ali Finder", language="uz",
+            )
+            cls.owner = TelegramUser.objects.create(
+                telegram_id=910002, display_name="Vali Owner", language="uz",
+            )
+            cls.category = Category.objects.create(
+                name_uz="NotifyTest Phones", emoji="x", retention_days=30
+            )
+            cls.color = Color.objects.create(name_uz="NotifyTest Black")
+            cls.location = Location.objects.create(
+                building_uz="NotifyTest Main", area_uz="NotifyTest Hall"
+            )
+            cls.found = FoundReport.objects.create(
+                reporter=cls.finder, category=cls.category, color=cls.color,
+                location=cls.location, title="black phone", description="black phone",
+                date_found=timezone.localdate(), custody="handed_to_office",
+                finder_contact_allowed=True, status="registered",
+            )
+            cls.lost = LostReport.objects.create(
+                reporter=cls.owner, category=cls.category, color=cls.color,
+                location=cls.location, title="black phone", description="black phone",
+                date_lost=timezone.localdate(), status="open",
+            )
+            cls.item = StoredItem.objects.create(
+                found_report=cls.found, category=cls.category, color=cls.color,
+                title="black phone", description="black phone",
+                shelf_code="NTF-01", received_by=cls.staff,
+            )
+            cls.suggestion = MatchSuggestion.objects.create(
+                lost_report=cls.lost, stored_item=cls.item, created_by="system",
+                score=12, score_breakdown={"color": 3},
+            )
+
+    def test_confirmed_text_includes_username_and_phone(self):
+        text = match_confirmed_text(self.suggestion)
+        self.assertIn("@finder_user", text)
+        self.assertIn("+998901112233", text)
+        self.assertIn("Ali Finder", text)
+        self.assertIn("black phone", text)
+
+    def test_contact_is_hidden_without_consent(self):
+        FoundReport.objects.filter(pk=self.found.pk).update(finder_contact_allowed=False)
+        suggestion = MatchSuggestion.objects.select_related(
+            "lost_report__reporter", "stored_item__found_report__reporter"
+        ).get(pk=self.suggestion.pk)
+        text = match_confirmed_text(suggestion)
+        self.assertNotIn("@finder_user", text)
+        self.assertNotIn("+998901112233", text)
+        self.assertIn("ofis xodimlari", text)
+
+    def test_notification_goes_to_the_lost_reporter(self):
+        with patch(
+            "bot_app.notifications.telegram_api.send_message",
+            return_value={"message_id": 5},
+        ) as send:
+            sent = notify_match_confirmed(self.suggestion)
+        self.assertTrue(sent)
+        send.assert_called_once()
+        chat_id, body = send.call_args.args
+        self.assertEqual(chat_id, self.owner.telegram_id)
+        self.assertIn("@finder_user", body)
+        self.assertIn("+998901112233", body)
+
+    def test_missing_token_is_a_noop(self):
+        with override_settings(BOT_TOKEN=""), patch(
+            "bot_app.notifications.telegram_api.send_message"
+        ) as send:
+            self.assertFalse(notify_match_confirmed(self.suggestion))
+        send.assert_not_called()
+
+    def test_found_report_only_suggestion_uses_finder_contact(self):
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=self.lost, found_report=self.found,
+                created_by="user", score=12,
+            )
+        text = match_confirmed_text(suggestion)
+        self.assertIn("@finder_user", text)
+        self.assertIn("+998901112233", text)
+
+    def test_match_confirmed_text_for_fetches_by_id(self):
+        text = match_confirmed_text_for(self.suggestion.pk, "en")
+        self.assertIn("@finder_user", text)
+        self.assertIn("Match confirmed", text)
+        self.assertIsNone(match_confirmed_text_for(999999, "en"))
+
+    def test_office_confirm_triggers_the_notification(self):
+        self.client.force_login(self.staff)
+        with patch(
+            "bot_app.notifications.telegram_api.send_message",
+            return_value={"message_id": 6},
+        ) as send:
+            response = self.client.post(
+                reverse("reports_match_review"),
+                {"action": "confirm", "suggestion_id": self.suggestion.pk},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.suggestion.refresh_from_db()
+        self.assertEqual(self.suggestion.status, "confirmed")
+        send.assert_called_once()
+        chat_id, body = send.call_args.args
+        self.assertEqual(chat_id, self.owner.telegram_id)
+        self.assertIn("@finder_user", body)

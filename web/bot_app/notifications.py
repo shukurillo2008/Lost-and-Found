@@ -49,6 +49,17 @@ TEXTS = {
         ),
         "yes": "✅ Ha, bu meniki",
         "no": "❌ Yo‘q, bu meniki emas",
+        "match_confirmed": (
+            "✅ <b>Moslik tasdiqlandi!</b>\n\n"
+            "«{title}» arizangiz bo‘yicha buyum topildi:\n"
+            "📦 <b>{item}</b>\n\n"
+            "{contact}\n\n"
+            "Buyumni olish uchun ofisga shaxsni tasdiqlovchi hujjat bilan keling."
+        ),
+        "contact_finder": "👤 Topgan odam: {name}",
+        "contact_username": "💬 Telegram: @{username}",
+        "contact_phone": "📞 Telefon: {phone}",
+        "contact_office": "👤 Topgan odamning kontakt ma’lumotlarini ofis xodimlari taqdim etadi.",
         "confirmed": (
             "✅ Rahmat! Arizangiz «mos kelgan» deb belgilandi. "
             "Buyumni olish uchun ofisga shaxsni tasdiqlovchi hujjat bilan keling."
@@ -77,6 +88,17 @@ TEXTS = {
         ),
         "yes": "✅ Да, это моя вещь",
         "no": "❌ Нет, это не моя вещь",
+        "match_confirmed": (
+            "✅ <b>Совпадение подтверждено!</b>\n\n"
+            "По вашей заявке «{title}» найдена вещь:\n"
+            "📦 <b>{item}</b>\n\n"
+            "{contact}\n\n"
+            "Для получения вещи придите в офис с документом, удостоверяющим личность."
+        ),
+        "contact_finder": "👤 Нашедший: {name}",
+        "contact_username": "💬 Telegram: @{username}",
+        "contact_phone": "📞 Телефон: {phone}",
+        "contact_office": "👤 Контактные данные нашедшего предоставят сотрудники офиса.",
         "confirmed": (
             "✅ Спасибо! Заявка отмечена как «совпадение». "
             "Для получения вещи придите в офис с документом, удостоверяющим личность."
@@ -105,6 +127,17 @@ TEXTS = {
         ),
         "yes": "✅ Yes, it is mine",
         "no": "❌ No, it is not mine",
+        "match_confirmed": (
+            "✅ <b>Match confirmed!</b>\n\n"
+            "An item matching your report “{title}” has been found:\n"
+            "📦 <b>{item}</b>\n\n"
+            "{contact}\n\n"
+            "Bring an ID document to the office to collect the item."
+        ),
+        "contact_finder": "👤 Found by: {name}",
+        "contact_username": "💬 Telegram: @{username}",
+        "contact_phone": "📞 Phone: {phone}",
+        "contact_office": "👤 The office staff will provide the finder's contact details.",
         "confirmed": (
             "✅ Thank you! Your report is marked as matched. "
             "Bring an ID document to the office to collect the item."
@@ -164,7 +197,87 @@ def _suggestion_item(suggestion, lang: str) -> tuple:
     return ("—", "—", "—")
 
 
+def _finder_report(suggestion: MatchSuggestion):
+    """The found report behind a suggestion, or ``None`` for walk-ins."""
+    item = suggestion.stored_item
+    if item is not None and item.found_report_id:
+        return item.found_report
+    return suggestion.found_report
+
+
+def _finder_contact_block(report, lang: str) -> str:
+    """Contact lines for the finder, gated by the opt-in consent flag.
+
+    ``FoundReport.finder_contact_allowed`` is the finder's decision; when
+    it is off (or the finder never used the bot) the office mediates and
+    no personal contact is revealed.
+    """
+    if report is None or not report.finder_contact_allowed:
+        return text_for(lang, "contact_office")
+    finder = report.reporter
+    if finder is None:
+        return text_for(lang, "contact_office")
+    lines = [
+        text_for(lang, "contact_finder", name=escape(finder.display_name))
+    ]
+    if finder.username:
+        lines.append(text_for(lang, "contact_username", username=escape(finder.username)))
+    if getattr(finder, "phone", None):
+        lines.append(text_for(lang, "contact_phone", phone=escape(finder.phone)))
+    if len(lines) == 1:
+        # Name alone is not a contact channel; let the office mediate.
+        return text_for(lang, "contact_office")
+    return "\n".join(lines)
+
+
+def match_confirmed_text(suggestion: MatchSuggestion, lang: str | None = None) -> str:
+    """Localized "match confirmed" message with the finder's contact."""
+    reporter = suggestion.lost_report.reporter
+    lang = lang or _reporter_language(reporter)
+    item_label, _category, _date = _suggestion_item(suggestion, lang)
+    return text_for(
+        lang,
+        "match_confirmed",
+        title=escape(suggestion.lost_report.title_in(lang)),
+        item=escape(item_label),
+        contact=_finder_contact_block(_finder_report(suggestion), lang),
+    )
+
+
+def match_confirmed_text_for(suggestion_id: int, lang: str) -> str | None:
+    """Fetch a suggestion and build the confirmation text (bot path)."""
+    suggestion = (
+        MatchSuggestion.objects.select_related(
+            "lost_report__reporter",
+            "stored_item__found_report__reporter",
+            "found_report__reporter",
+        )
+        .filter(pk=suggestion_id)
+        .first()
+    )
+    if suggestion is None:
+        return None
+    return match_confirmed_text(suggestion, lang)
+
+
+def notify_match_confirmed(suggestion: MatchSuggestion) -> bool:
+    """Tell the lost reporter that staff confirmed the match, with the
+    finder's contact (opt-in) so they can arrange the pick-up."""
+    reporter = suggestion.lost_report.reporter
+    if not telegram_api.is_enabled() or not _can_reach(reporter):
+        return False
+    body = match_confirmed_text(suggestion, _reporter_language(reporter))
+    sent = telegram_api.send_message(reporter.telegram_id, body)
+    if sent:
+        logger.info(
+            "notified reporter %s about confirmed match #%s",
+            reporter.telegram_id, suggestion.pk,
+        )
+    return bool(sent)
+
+
 def notify_suggestion(suggestion: MatchSuggestion) -> bool:
+
     """Ask the lost reporter whether a suggested item is theirs."""
     reporter = suggestion.lost_report.reporter
     if not telegram_api.is_enabled() or not _can_reach(reporter):

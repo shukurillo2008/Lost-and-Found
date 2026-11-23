@@ -1,17 +1,19 @@
-"""Tests for the ``seed_demo`` management command (course §4.6 demo data).
+"""Tests for the seeding management commands (course §4.6 demo data).
 
-Locked behaviors: the command is idempotent even when called twice in one
+Locked behaviors: ``seed_demo`` is idempotent even when called twice in one
 process, the handover history is internally consistent (confirmed match →
 handover → returned item/found/lost reports → audit log), historical dates
 are ordered, and every returned item has an act while no in-storage item
-does.
+does. ``seed_reference`` fills only the reference tables.
 """
 from io import StringIO
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
+from catalog.models import Category, Color, Location
 from matching.models import Handover, MatchSuggestion
 from reports.models import FoundReport, LostReport
 from storage.models import ItemStatusLog, StoredItem
@@ -110,3 +112,49 @@ class SeedDemoTests(TestCase):
             ),
             counts,
         )
+
+
+class SeedReferenceTests(TestCase):
+    """``seed_reference`` fills the reference tables and nothing else."""
+
+    @staticmethod
+    def run_reference():
+        call_command("seed_reference", stdout=StringIO())
+
+    def test_seed_reference_creates_only_reference_rows(self):
+        self.run_reference()
+        self.assertEqual(Location.objects.count(), 20)
+        self.assertEqual(Category.objects.count(), 9)
+        self.assertEqual(Color.objects.count(), 12)
+        # No transactional data, no accounts.
+        self.assertEqual(LostReport.objects.count(), 0)
+        self.assertEqual(FoundReport.objects.count(), 0)
+        self.assertEqual(StoredItem.objects.count(), 0)
+        self.assertEqual(MatchSuggestion.objects.count(), 0)
+        self.assertEqual(get_user_model().objects.count(), 0)
+
+    def test_seed_reference_is_idempotent(self):
+        self.run_reference()
+        first = (Location.objects.count(), Category.objects.count(), Color.objects.count())
+        self.run_reference()
+        self.assertEqual(
+            (Location.objects.count(), Category.objects.count(), Color.objects.count()),
+            first,
+        )
+
+    def test_reference_data_keeps_the_demo_defaults(self):
+        self.run_reference()
+        category = Category.objects.get(name_uz="Elektronika")
+        self.assertEqual(category.retention_days, 90)
+        self.assertEqual(category.name_en, "Electronics")
+        location = Location.objects.get(building_uz="Kutubxona", area_uz="Kompyuter sinfxonasi")
+        self.assertEqual(location.building_en, "Library")
+        self.assertEqual(location.area_en, "Computer Lab")
+        self.assertEqual(Color.objects.get(name_uz="Qora").name_en, "Black")
+
+    def test_seed_reference_then_seed_demo_does_not_duplicate(self):
+        self.run_reference()
+        call_command("seed_demo", stdout=StringIO())
+        self.assertEqual(Location.objects.count(), 20)
+        self.assertEqual(Category.objects.count(), 9)
+        self.assertEqual(Color.objects.count(), 12)

@@ -33,6 +33,7 @@ def main_menu(lang: str) -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text=t(lang, "menu_lost")), KeyboardButton(text=t(lang, "menu_found"))],
             [KeyboardButton(text=t(lang, "menu_recent")), KeyboardButton(text=t(lang, "menu_my_reports"))],
+            [KeyboardButton(text=t(lang, "menu_share_phone"), request_contact=True)],
         ],
         resize_keyboard=True,
     )

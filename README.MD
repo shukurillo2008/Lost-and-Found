@@ -60,6 +60,8 @@ The Telegram bot handle is the one assigned to the configured `BOT_TOKEN`. If yo
 - **Recent found items** browser with pagination and a "this is mine" action that creates a match suggestion for the chosen lost report.
 - **My reports** list with the ability to cancel a report.
 - Match notifications with inline **Yes / No** buttons; the answer is applied through the same decision logic as the office panel.
+- **Share phone number** menu button (Telegram `request_contact`) so a finder can be reached if they opted in to contact sharing.
+- When a match is confirmed, the lost reporter gets a message with the finder's **Telegram @username** and, when shared, **phone number**; without consent the office mediates the return.
 - Handover notification when an item is returned.
 - One-tap **reopen** button when a lost report is automatically expired after 90 days.
 - Blocked-user middleware: blocked accounts cannot use the bot.
@@ -206,6 +208,14 @@ docker compose exec web python web/manage.py seed_demo
 
 `seed_demo` is idempotent and deterministic: it uses `get_or_create` natural keys and `random.seed(42)`, so it can be run repeatedly without duplicating rows. If `SEED_ADMIN_USERNAME` and `SEED_ADMIN_PASSWORD` are set, the first run also creates the office superuser.
 
+If the database must stay otherwise empty — for example a clean demo where every report is entered live — fill only the reference tables the bot and the office forms need:
+
+```bash
+docker compose exec web python web/manage.py seed_reference
+```
+
+`seed_reference` creates the same 20 campus locations, 9 categories and 12 colours as the full seeder, but no users, reports or storage items. It is idempotent and safe to run before `seed_demo` (the full seeder then only adds the transactional data).
+
 To create an additional administrator manually:
 
 ```bash
@@ -285,6 +295,10 @@ The mock data is **fully trilingual**. Every lost and found report is generated 
 The four `office.*` accounts are data owners for the seeded history. They are not intended as login accounts; sign in with the superuser created from `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`.
 
 After the first worker matching cycle, the seeded open reports also get a handful of **pending system suggestions**, so the match review queue is populated for the demo. Seeded Telegram users have fake ids, so notifications to them are rejected by Telegram and logged as warnings without breaking the cycle.
+
+### Reference data only
+
+`python web/manage.py seed_reference` fills just the reference layer — 3 buildings / 20 areas, 9 categories with their retention policies, and 12 colours — and leaves reports, storage items and accounts untouched. Use it when the database should stay empty (for example a defence run where all transactional data is entered live). Both commands share the same tables, so `seed_reference` followed by `seed_demo` never duplicates reference rows.
 
 ---
 

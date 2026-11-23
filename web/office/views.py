@@ -31,7 +31,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import check_for_language, gettext as _
 from django.views.static import serve as static_serve
 
-from bot_app.notifications import notify_handover, notify_suggestion
+from bot_app.notifications import notify_handover, notify_match_confirmed, notify_suggestion
 from catalog.models import Category, Color, Location
 from matching.engine import score_breakdown, score_from_breakdown
 from matching.models import Handover, MatchSuggestion
@@ -1218,6 +1218,9 @@ def _decide_suggestion(request: HttpRequest, suggestion: MatchSuggestion, action
         return False
     if outcome == "confirmed":
         messages.success(request, _("Match confirmed — the handover form is pre-filled."))
+        # Tell the lost reporter that the office confirmed the match and,
+        # when the finder opted in, how to reach them.
+        notify_match_confirmed(suggestion)
     else:
         messages.success(request, _("Suggestion rejected."))
     return True

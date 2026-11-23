@@ -62,6 +62,31 @@ async def cb_set_language(call: CallbackQuery, state: FSMContext, django_user: T
     await call.answer()
 
 
+@router.message(F.contact)
+async def cmd_share_phone(message: Message, django_user: TelegramUser):
+    """Save the phone number the user shares via the request-contact button.
+
+    The number is used only to hand the finder's contact to the owner of a
+    matched item, and only when the finder opted in at report time.
+    """
+    lang = django_user.language
+    contact = message.contact
+    sender_id = message.from_user.id if message.from_user else None
+    if (
+        contact is None
+        or not (contact.phone_number or "").strip()
+        or (contact.user_id and contact.user_id != sender_id)
+    ):
+        await message.answer(t(lang, "phone_not_yours"))
+        return
+    phone = contact.phone_number.strip()
+    await sync_to_async(
+        lambda: TelegramUser.objects.filter(pk=django_user.pk).update(phone=phone)
+    )()
+    django_user.phone = phone
+    await message.answer(t(lang, "phone_saved"), reply_markup=main_menu(lang))
+
+
 @fallback_router.message(F.text & StateFilter(None))
 async def unknown_fallback(message: Message, django_user: TelegramUser):
     lang = django_user.language

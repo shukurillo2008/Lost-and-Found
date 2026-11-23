@@ -23,6 +23,7 @@ from bot_app.notifications import (
     REJECT_PREFIX,
     REOPEN_PREFIX,
     decide_from_bot,
+    match_confirmed_text_for,
     reopen_from_bot,
 )
 
@@ -76,7 +77,15 @@ async def _apply(call: CallbackQuery, django_user: TelegramUser, action: str):
         show_alert=outcome == OUTCOME_NOT_YOURS,
     )
     if outcome in (OUTCOME_CONFIRMED, OUTCOME_REJECTED) and call.message is not None:
-        await call.message.answer(result_text)
+        # A confirmation carries the finder's contact details (opt-in), so
+        # the reporter knows how to arrange the pick-up.
+        body = result_text
+        if outcome == OUTCOME_CONFIRMED:
+            body = (
+                await sync_to_async(match_confirmed_text_for)(suggestion_id, lang)
+                or result_text
+            )
+        await call.message.answer(body)
 
 
 @router.callback_query(F.data.startswith(CONFIRM_PREFIX))

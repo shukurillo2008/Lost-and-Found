@@ -12,6 +12,7 @@ class TelegramUser(models.Model):
 
     telegram_id = models.BigIntegerField(unique=True, db_index=True)
     username = models.CharField(max_length=64, blank=True, null=True)
+    phone = models.CharField(max_length=32, blank=True, null=True)
     display_name = models.CharField(max_length=128)
     language = models.CharField(max_length=2, choices=LANGUAGE_CHOICES, default="uz")
     student_staff_id = models.CharField(max_length=64, blank=True, null=True)
