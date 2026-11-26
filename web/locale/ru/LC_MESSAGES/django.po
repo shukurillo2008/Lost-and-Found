@@ -820,12 +820,6 @@ msgstr "Информация о вещи"
 msgid "Storage details"
 msgstr "Хранение"
 
-msgid "Additional color"
-msgstr "Дополнительный цвет"
-
-msgid "Not specified"
-msgstr "Не указано"
-
 msgid "Required fields are marked with *"
 msgstr "* обязательные поля"
 

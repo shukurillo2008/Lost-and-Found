@@ -199,7 +199,7 @@
                 <div class="card border-0 shadow-sm">
                     <div class="card-body p-3">
                         <div class="row g-2">
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-6">
                                 <label class="form-label" for="inputCategory">
                                     {% trans "Category" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
@@ -213,7 +213,7 @@
                                 </select>
                                 <div class="invalid-feedback" id="categoryError">{% trans "Choose a category." %}</div>
                             </div>
-                            <div class="col-6 col-md-4">
+                            <div class="col-12 col-md-6">
                                 <label class="form-label" for="inputColor">
                                     {% trans "Color" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
@@ -226,17 +226,6 @@
                                     {% endfor %}
                                 </select>
                                 <div class="invalid-feedback" id="colorError">{% trans "Choose a color" %}</div>
-                            </div>
-                            <div class="col-6 col-md-4">
-                                <label class="form-label" for="inputAdditionalColor">{% trans "Additional color" %}</label>
-                                <!-- BACKEND TODO: persist additional_color (model field + view handling). -->
-                                <select class="form-select" id="inputAdditionalColor" name="additional_color">
-                                    <option value="">{% trans "Not specified" %}</option>
-                                    {% for clr_pk, clr_name in color_choices %}
-                                    <option value="{{ clr_pk }}"
-                                            {% if submitted.additional_color == clr_pk|stringformat:"s" %}selected{% endif %}>{{ clr_name }}</option>
-                                    {% endfor %}
-                                </select>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" for="inputTitle">
@@ -482,8 +471,7 @@
         }
 
         decodeOptionLabels(select);
-        [document.getElementById("inputCategory"), document.getElementById("inputColor"),
-         document.getElementById("inputAdditionalColor")].forEach(function (el) {
+        [document.getElementById("inputCategory"), document.getElementById("inputColor")].forEach(function (el) {
             if (el) decodeOptionLabels(el);
         });
         moveOthersLast(document.getElementById("inputCategory"));

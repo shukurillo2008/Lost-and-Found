@@ -820,12 +820,6 @@ msgstr "Buyum ma’lumotlari"
 msgid "Storage details"
 msgstr "Saqlash"
 
-msgid "Additional color"
-msgstr "Qo‘shimcha rang"
-
-msgid "Not specified"
-msgstr "Ko‘rsatilmagan"
-
 msgid "Required fields are marked with *"
 msgstr "* majburiy maydonlar"
 
