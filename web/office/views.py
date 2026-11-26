@@ -360,6 +360,16 @@ def _lost_status_labels() -> dict:
     }
 
 
+def _found_status_labels() -> dict:
+    """Translated labels for FoundReport statuses (render-time only)."""
+    return {
+        "open": _("Open"),
+        "registered": _("Registered"),
+        "returned": _("Returned"),
+        "cancelled": _("Cancelled"),
+    }
+
+
 @staff_required
 def storage_receive(request: HttpRequest) -> HttpResponse:
     return render(request, "storage/receive_form.html", {})
@@ -1143,6 +1153,103 @@ def reports_lost_list(request: HttpRequest) -> HttpResponse:
         "location_choices": [
             (loc.pk, loc.display(lang))
             for loc in Location.objects.order_by("building_uz", "area_uz")
+        ],
+    })
+
+
+@staff_required
+def reports_found_list(request: HttpRequest) -> HttpResponse:
+    """Found reports — filterable office table.
+
+    Every found report is listed regardless of custody: ``handed_to_office``
+    rows are the ones staff can receive into storage, while
+    ``kept_by_finder`` rows stay visible so the office can mediate the
+    return and share the finder's contact only when consent was given.
+    """
+    lang = _ui_lang(request)
+
+    status = request.GET.get("status") or "all"
+    if status not in ("open", "registered", "returned", "cancelled", "all"):
+        status = "all"
+
+    custody = request.GET.get("custody") or "all"
+    if custody not in ("handed_to_office", "kept_by_finder", "all"):
+        custody = "all"
+
+    query = (request.GET.get("q") or "").strip()
+    category_id = request.GET.get("category") or ""
+    date_from, date_to = _date_range_or_flash(request)
+
+    reports = (
+        FoundReport.objects.select_related(
+            "category", "color", "reporter", "location", "stored_item"
+        )
+        .order_by("-date_found", "-created_at")
+    )
+    if status != "all":
+        reports = reports.filter(status=status)
+    if custody != "all":
+        reports = reports.filter(custody=custody)
+    if query:
+        # Same rule as the lost list: search the canonical text plus every
+        # language stream so a term visible in any UI language finds its row.
+        reports = reports.filter(
+            Q(title__icontains=query) | Q(description__icontains=query)
+            | Q(title_uz__icontains=query) | Q(title_en__icontains=query)
+            | Q(title_ru__icontains=query)
+            | Q(description_uz__icontains=query) | Q(description_en__icontains=query)
+            | Q(description_ru__icontains=query)
+        )
+    if category_id.isdigit():
+        reports = reports.filter(category_id=int(category_id))
+    if date_from:
+        reports = reports.filter(date_found__gte=date_from)
+    if date_to:
+        reports = reports.filter(date_found__lte=date_to)
+
+    paginator = Paginator(reports, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    labels = _found_status_labels()
+    item_labels = _status_labels()
+    rows = []
+    for report in page_obj:
+        item = getattr(report, "stored_item", None)
+        rows.append({
+            "report": report,
+            "title_ui": report.title_in(lang),
+            "description_ui": report.description_in(lang),
+            "status_label": labels.get(report.status, report.status),
+            "custody_label": (
+                _("Handed to office") if report.custody == "handed_to_office"
+                else _("Kept by finder")
+            ),
+            "category_name": report.category.localized_name(lang),
+            "color_name": report.color.localized_name(lang) if report.color else "",
+            "location_name": report.location.display(lang) if report.location else "",
+            "stored_item": item,
+            "item_status_label": item_labels.get(item.status, item.status) if item else "",
+        })
+
+    params = request.GET.copy()
+    if "page" in params:
+        del params["page"]
+    qstring = f"{params.urlencode()}&" if params else ""
+
+    return render(request, "reports/found_list.html", {
+        "rows": rows,
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "has_filters": bool(query or category_id or date_from or date_to
+                            or status != "all" or custody != "all"),
+        "status": status,
+        "custody": custody,
+        "query": query,
+        "selected_category": category_id,
+        **_echo_range(date_from, date_to),
+        "category_choices": [
+            (cat.pk, cat.localized_name(lang))
+            for cat in Category.objects.order_by("name_uz")
         ],
     })
 

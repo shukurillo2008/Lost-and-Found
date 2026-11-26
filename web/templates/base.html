@@ -46,28 +46,62 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link{% if '/reports/' in request.path %} active{% endif %}"
-                       href="{% url 'reports_lost_list' %}"{% if request.path == '/reports/lost/' %} aria-current="page"{% endif %}>
-                        <i class="ti ti-flag" aria-hidden="true"></i> {% trans "Lost reports" %}
-                    </a>
+                    <button class="nav-link nav-parent{% if '/reports/' in request.path %} active{% endif %}"
+                            type="button" data-bs-toggle="collapse" data-bs-target="#reportsSubmenu"
+                            aria-expanded="{% if '/reports/' in request.path %}true{% else %}false{% endif %}"
+                            aria-controls="reportsSubmenu">
+                        <i class="ti ti-files" aria-hidden="true"></i>
+                        <span>{% trans "Reports" %}</span>
+                        <i class="ti ti-chevron-down nav-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="collapse{% if '/reports/' in request.path %} show{% endif %}" id="reportsSubmenu">
+                        <ul class="nav flex-column">
+                            <li class="nav-item">
+                                <a class="nav-link nav-sub{% if '/reports/lost/' in request.path %} active{% endif %}"
+                                   href="{% url 'reports_lost_list' %}"{% if '/reports/lost/' in request.path %} aria-current="page"{% endif %}>
+                                    <i class="ti ti-flag" aria-hidden="true"></i> {% trans "Lost reports" %}
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link nav-sub{% if '/reports/found/' in request.path %} active{% endif %}"
+                                   href="{% url 'reports_found_list' %}"{% if '/reports/found/' in request.path %} aria-current="page"{% endif %}>
+                                    <i class="ti ti-gift" aria-hidden="true"></i> {% trans "Found reports" %}
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link nav-sub{% if request.path == '/reports/matches/' %} active{% endif %}"
+                                   href="{% url 'reports_match_review' %}"{% if request.path == '/reports/matches/' %} aria-current="page"{% endif %}>
+                                    <i class="ti ti-puzzle" aria-hidden="true"></i> {% trans "Match review" %}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link nav-sub{% if request.path == '/reports/matches/' %} active{% endif %}"
-                       href="{% url 'reports_match_review' %}"{% if request.path == '/reports/matches/' %} aria-current="page"{% endif %}>
-                        <i class="ti ti-puzzle" aria-hidden="true"></i> {% trans "Match review" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link{% if '/catalog/' in request.path %} active{% endif %}"
-                       href="{% url 'catalog_location_form' %}"{% if request.path == '/catalog/locations/' %} aria-current="page"{% endif %}>
-                        <i class="ti ti-map-pin" aria-hidden="true"></i> {% trans "Locations" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link nav-sub{% if '/catalog/categories/' in request.path %} active{% endif %}"
-                       href="{% url 'catalog_category_form' %}"{% if request.path == '/catalog/categories/' %} aria-current="page"{% endif %}>
-                        <i class="ti ti-tags" aria-hidden="true"></i> {% trans "Categories & colors" %}
-                    </a>
+                    <button class="nav-link nav-parent{% if '/catalog/' in request.path %} active{% endif %}"
+                            type="button" data-bs-toggle="collapse" data-bs-target="#catalogSubmenu"
+                            aria-expanded="{% if '/catalog/' in request.path %}true{% else %}false{% endif %}"
+                            aria-controls="catalogSubmenu">
+                        <i class="ti ti-folders" aria-hidden="true"></i>
+                        <span>{% trans "Catalog" %}</span>
+                        <i class="ti ti-chevron-down nav-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="collapse{% if '/catalog/' in request.path %} show{% endif %}" id="catalogSubmenu">
+                        <ul class="nav flex-column">
+                            <li class="nav-item">
+                                <a class="nav-link nav-sub{% if '/catalog/locations/' in request.path %} active{% endif %}"
+                                   href="{% url 'catalog_location_form' %}"{% if '/catalog/locations/' in request.path %} aria-current="page"{% endif %}>
+                                    <i class="ti ti-map-pin" aria-hidden="true"></i> {% trans "Locations" %}
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link nav-sub{% if '/catalog/categories/' in request.path %} active{% endif %}"
+                                   href="{% url 'catalog_category_form' %}"{% if '/catalog/categories/' in request.path %} aria-current="page"{% endif %}>
+                                    <i class="ti ti-tags" aria-hidden="true"></i> {% trans "Categories & colors" %}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
             </ul>
 

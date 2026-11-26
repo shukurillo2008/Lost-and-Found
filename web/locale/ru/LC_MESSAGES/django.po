@@ -257,7 +257,7 @@ msgid "Choosing a report prefills the fields below."
 msgstr "Выбор заявки автоматически заполнит поля ниже."
 
 msgid "Choose a category."
-msgstr "Выберите категорию."
+msgstr "Выберите категорию"
 
 msgid "Choose a color"
 msgstr "Выберите цвет"
@@ -783,3 +783,89 @@ msgstr "Укажите даты в формате YYYY-MM-DD."
 
 msgid "Answered by the reporter via Telegram"
 msgstr "Ответ дано заявителем через Telegram"
+
+msgid "Found reports"
+msgstr "Заявки о находках"
+
+msgid "Found reports list"
+msgstr "Список заявок о находках"
+
+msgid "All custody"
+msgstr "Все варианты хранения"
+
+msgid "Contact consent"
+msgstr "Согласие на контакт"
+
+msgid "Shared"
+msgstr "Предоставлен"
+
+msgid "Not shared"
+msgstr "Не предоставлен"
+
+msgid "Linked item"
+msgstr "Связанная вещь"
+
+msgid "No found reports match the filters."
+msgstr "Нет заявок о находках, соответствующих фильтрам."
+
+msgid "Found from"
+msgstr "Найдено с"
+
+msgid "Found to"
+msgstr "Найдено по"
+
+msgid "Item information"
+msgstr "Информация о вещи"
+
+msgid "Storage details"
+msgstr "Хранение"
+
+msgid "Additional color"
+msgstr "Дополнительный цвет"
+
+msgid "Not specified"
+msgstr "Не указано"
+
+msgid "Required fields are marked with *"
+msgstr "* обязательные поля"
+
+msgid "Fields were changed. Replace?"
+msgstr "Поля изменены. Заменить?"
+
+msgid "Replace"
+msgstr "Заменить"
+
+msgid "Keep"
+msgstr "Оставить"
+
+msgid "Use the photo from the report"
+msgstr "Использовать фото из заявки"
+
+msgid "Example: A1-01"
+msgstr "Например: A1-01"
+
+msgid "Use the format A1-01."
+msgstr "Используйте формат A1-01."
+
+msgid "This shelf code is already in use."
+msgstr "Этот код полки уже используется."
+
+msgid "Only JPG and PNG images are allowed."
+msgstr "Разрешены только изображения JPG и PNG."
+
+msgid "JPG or PNG, up to 5 MB."
+msgstr "JPG или PNG, до 5 МБ."
+
+msgid "Save and add another"
+msgstr "Сохранить и добавить ещё"
+
+msgid "You have unsaved changes. Leave the page?"
+msgstr "Есть несохранённые изменения. Покинуть страницу?"
+
+msgid "Please correct the following:"
+msgstr "Исправьте следующее:"
+
+msgid "Please fill in this field."
+msgstr "Заполните это поле."
+
+

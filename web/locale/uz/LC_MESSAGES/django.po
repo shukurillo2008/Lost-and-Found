@@ -257,7 +257,7 @@ msgid "Choosing a report prefills the fields below."
 msgstr "Arizani tanlash quyidagi maydonlarni avtomatik to‘ldiradi."
 
 msgid "Choose a category."
-msgstr "Toifani tanlang."
+msgstr "Toifani tanlang"
 
 msgid "Choose a color"
 msgstr "Rangni tanlang"
@@ -783,3 +783,89 @@ msgstr "Sanalarni YYYY-MM-DD formatida kiriting."
 
 msgid "Answered by the reporter via Telegram"
 msgstr "Arizachi tomonidan Telegram orqali javob berildi"
+
+msgid "Found reports"
+msgstr "Topilgan arizalar"
+
+msgid "Found reports list"
+msgstr "Topilgan arizalar ro`yxati"
+
+msgid "All custody"
+msgstr "Barcha saqlash holatlari"
+
+msgid "Contact consent"
+msgstr "Kontaktga rozilik"
+
+msgid "Shared"
+msgstr "Ulashilgan"
+
+msgid "Not shared"
+msgstr "Ulashilmagan"
+
+msgid "Linked item"
+msgstr "Bog`langan buyum"
+
+msgid "No found reports match the filters."
+msgstr "Filtrlarga mos topilgan ariza yo`q."
+
+msgid "Found from"
+msgstr "Topilgan sana (dan)"
+
+msgid "Found to"
+msgstr "Topilgan sana (gacha)"
+
+msgid "Item information"
+msgstr "Buyum ma’lumotlari"
+
+msgid "Storage details"
+msgstr "Saqlash"
+
+msgid "Additional color"
+msgstr "Qo‘shimcha rang"
+
+msgid "Not specified"
+msgstr "Ko‘rsatilmagan"
+
+msgid "Required fields are marked with *"
+msgstr "* majburiy maydonlar"
+
+msgid "Fields were changed. Replace?"
+msgstr "Maydonlar o‘zgartirilgan. Almashtirishmi?"
+
+msgid "Replace"
+msgstr "Almashtirish"
+
+msgid "Keep"
+msgstr "Qoldirish"
+
+msgid "Use the photo from the report"
+msgstr "Arizadagi rasmdan foydalanish"
+
+msgid "Example: A1-01"
+msgstr "Masalan: A1-01"
+
+msgid "Use the format A1-01."
+msgstr "A1-01 formatidan foydalaning."
+
+msgid "This shelf code is already in use."
+msgstr "Bu polka kodi allaqachon band."
+
+msgid "Only JPG and PNG images are allowed."
+msgstr "Faqat JPG va PNG rasmlarga ruxsat beriladi."
+
+msgid "JPG or PNG, up to 5 MB."
+msgstr "JPG yoki PNG, 5 MB gacha."
+
+msgid "Save and add another"
+msgstr "Saqlash va yana qo‘shish"
+
+msgid "You have unsaved changes. Leave the page?"
+msgstr "Saqlanmagan o‘zgarishlar bor. Sahifadan chiqasizmi?"
+
+msgid "Please correct the following:"
+msgstr "Quyidagilarni to‘g‘rilang:"
+
+msgid "Please fill in this field."
+msgstr "Bu maydonni to‘ldiring."
+
+

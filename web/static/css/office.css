@@ -176,6 +176,24 @@ button:focus-visible,
 .sidebar .nav-link:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
 .sidebar .nav-link.active { background: #fff; color: var(--lnf-navy-dark); font-weight: 600; }
 .sidebar .nav-sub { font-size: 0.85rem; margin-left: 2.2rem; padding-block: 0.35rem; }
+.sidebar .nav-link.nav-sub.active {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Collapsible "Reports" group: the whole parent is the toggle button and
+   the chevron rotates with the Bootstrap collapse state. */
+.sidebar .nav-parent { cursor: pointer; text-align: left; }
+.sidebar .nav-parent i.nav-chevron {
+    margin-left: auto;
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+}
+.sidebar .nav-parent[aria-expanded="true"] .nav-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+    .sidebar .nav-parent .nav-chevron { transition: none; }
+}
 .sidebar-footer { border-top: 1px solid rgba(255, 255, 255, 0.25); }
 
 @media (max-width: 991.98px) {
@@ -325,6 +343,11 @@ button:focus-visible,
 .status-returned { background: #e1f3e8; color: #14603a; }
 .status-disposed { background: #fbe4e4; color: #8c2525; }
 .status-transferred { background: #e3f1f6; color: #1a5a73; }
+.status-open { background: #e2e9f7; color: #12386e; }
+.status-registered { background: #e3f1f6; color: #1a5a73; }
+.status-matched { background: #fdf1dc; color: #7a4b12; }
+.status-expired { background: #fbe4e4; color: #8c2525; }
+.status-cancelled { background: #eceff4; color: #4a5568; }
 .badge-expiring { background: #fdf1dc; color: #7a4b12; font-weight: 600; }
 
 /* ---- Storage receive form ----------------------------------------------------- */

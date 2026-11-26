@@ -7,11 +7,122 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'vendor/select2/css/select2.min.css' %}">
 <link rel="stylesheet" href="{% static 'vendor/select2/css/select2-bootstrap-5-theme.min.css' %}">
+<style>
+    /* ---- Receive page additions (kept local to this template) ---------- */
+    .receive-step-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 50%;
+        background: var(--lnf-navy);
+        color: #fff;
+        font-size: .85rem;
+        font-weight: 700;
+        flex: none;
+    }
+    .receive-fieldset {
+        border: 0;
+        padding: 0;
+        margin: 0 0 1rem;
+        min-width: 0;
+    }
+    .receive-fieldset > legend {
+        float: none;
+        width: auto;
+        padding: 0;
+        margin: 0 0 .5rem;
+        font-size: 1rem;
+        letter-spacing: 0;
+        color: var(--lnf-navy-dark);
+        font-weight: 700;
+    }
+    /* Report details stay beside the form on desktop and stick while staff
+       scroll through the item fields. On mobile the column is ordered above
+       the item form, so it sits directly under Step 1. */
+    @media (min-width: 992px) {
+        .report-details-sticky {
+            position: sticky;
+            top: 5rem;
+            max-height: calc(100vh - 6rem);
+            overflow-y: auto;
+        }
+    }
+    .receive-details-toggle .ti-chevron-down { transition: transform .2s ease; }
+    .receive-details-toggle[aria-expanded="true"] .ti-chevron-down { transform: rotate(180deg); }
+    .lnf-autofilled {
+        animation: lnf-autofill 2s ease-out;
+    }
+    @keyframes lnf-autofill {
+        0% {
+            box-shadow: 0 0 0 3px rgba(4, 54, 117, .38);
+            background-color: var(--lnf-navy-soft);
+        }
+        100% {
+            box-shadow: 0 0 0 3px rgba(4, 54, 117, 0);
+            background-color: transparent;
+        }
+    }
+    /* Brand-coloured inline notice (replaces the old yellow alert-warning). */
+    .lnf-prefill-prompt {
+        background: var(--lnf-navy);
+        border: 1px solid var(--lnf-navy-dark);
+        border-radius: .5rem;
+        color: #fff;
+        padding: .75rem 1rem;
+    }
+    .receive-photo-preview {
+        max-width: 100%;
+        max-height: 180px;
+        object-fit: contain;
+        border: 1px solid var(--bs-border-color);
+        border-radius: .5rem;
+    }
+    /* Keep the Select2 box filling the flex item when the action buttons
+       appear/disappear beside it. */
+    #inputFoundReport + .select2-container { width: 100% !important; }
+    /* The Clear / Report details buttons sit on the same row as the selector
+       on tablets and desktops; only very narrow phones wrap them. */
+    .receive-report-row { flex-wrap: nowrap; }
+    @media (max-width: 575.98px) {
+        .receive-report-row { flex-wrap: wrap; }
+        .receive-report-select { flex: 1 1 100%; }
+    }
+    /* Keep the three bottom actions inside the content column: share the
+       available width and wrap to full-width rows when the screen is narrow. */
+    .receive-actions > .btn { flex: 1 1 auto; }
+    @media (prefers-reduced-motion: reduce) {
+        .receive-details-toggle .ti-chevron-down { transition: none; }
+        .lnf-autofilled { animation: none; }
+    }
+</style>
+<noscript>
+    <style>
+        /* Without JS the collapse toggle cannot run; keep the details panel
+           readable instead of hiding it permanently. */
+        .collapse:not(.show) { display: block; }
+    </style>
+</noscript>
 {% endblock %}
 
 {% block content %}
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" id="receiveForm">
     {% csrf_token %}
+
+    <!-- Client-side validation summary; server-side field_errors is a BACKEND TODO. -->
+    <div id="formErrorSummary" class="alert alert-danger{% if not field_errors %} d-none{% endif %}"
+         role="alert" aria-live="assertive" tabindex="-1">
+        <h2 class="h6 mb-2">{% trans "Please correct the following:" %}</h2>
+        {% if field_errors %}
+        <ul class="mb-1" id="serverErrorList">
+            {% for field_id, message in field_errors.items %}
+            <li><a href="#{{ field_id }}">{{ message }}</a></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <ul class="mb-0" id="formErrorList"></ul>
+    </div>
 
     {% if error %}
     <div class="alert alert-danger" role="alert">
@@ -20,150 +131,261 @@
     </div>
     {% endif %}
 
-    <div class="row g-4">
-        <!-- Left: the receive form -->
-        <div class="col-12 col-lg-7">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body p-4">
-                    <div class="row g-3">
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="inputCategory">{% trans "Category" %} <span class="text-danger">*</span></label>
-                            <select class="form-select" id="inputCategory" name="category" required>
-                                <option value="">{% trans "Choose a category." %}</option>
-                                {% for cat_pk, cat_name in category_choices %}
-                                <option value="{{ cat_pk }}"
-                                        {% if submitted.category == cat_pk|stringformat:"s" %}selected{% endif %}>{{ cat_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="inputColor">{% trans "Color" %} <span class="text-danger">*</span></label>
-                            <select class="form-select" id="inputColor" name="color" required>
-                                <option value="">{% trans "Choose a color" %}</option>
-                                {% for clr_pk, clr_name in color_choices %}
-                                <option value="{{ clr_pk }}"
-                                        {% if submitted.color == clr_pk|stringformat:"s" %}selected{% endif %}>{{ clr_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label" for="inputTitle">{% trans "Title" %} <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="inputTitle" name="title"
-                                   maxlength="120" required
-                                   value="{{ submitted.title|default:'' }}"
-                                   autocomplete="off">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label" for="inputDescription">{% trans "Description" %} <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="inputDescription" name="description" rows="4" required>{{ submitted.description|default:'' }}</textarea>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="inputShelf">{% trans "Shelf code" %} <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="inputShelf" name="shelf_code"
-                                   maxlength="16" required
-                                   value="{{ submitted.shelf_code|default:suggested_shelf }}">
-                            <p class="lnf-hint mb-0 mt-1">
-                                <i class="ti ti-info-circle" aria-hidden="true"></i>
-                                {% trans "The next free code is suggested and can be changed." %}
-                            </p>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="inputPhoto">{% trans "Photo (JPG/PNG, up to 5 MB)" %}</label>
-                            <input type="file" class="form-control" id="inputPhoto" name="photo" accept="image/png,image/jpeg">
-                        </div>
-                    </div>
+    <p class="small text-muted mb-3">{% trans "Required fields are marked with *" %}</p>
 
-                    <div class="d-flex flex-wrap gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary flex-grow-1">
-                            <i class="ti ti-device-floppy" aria-hidden="true"></i> {% trans "Save & register" %}
-                        </button>
-                        <a class="btn btn-outline-secondary" href="{% url 'storage_item_list' %}">
-                            {% trans "Cancel" %}
-                        </a>
-                    </div>
-                </div>
+    <!-- ================= STEP 1: linked found report ================= -->
+    <section class="card border-0 shadow-sm mb-3" aria-labelledby="step1Heading">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="receive-step-badge" aria-hidden="true">1</span>
+                <h2 class="h6 mb-0" id="step1Heading">{% trans "Link a found report (optional)" %}</h2>
             </div>
-        </div>
 
-        <!-- Right: found report linking (searchable) -->
-        <div class="col-12 col-lg-5">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-4">
-                    <label class="form-label fw-semibold" for="inputFoundReport">
-                        <i class="ti ti-link" aria-hidden="true"></i>
-                        {% trans "Link a found report (optional)" %}
-                    </label>
+            <label class="form-label visually-hidden" for="inputFoundReport">
+                {% trans "Link a found report (optional)" %}
+            </label>
+            <div class="d-flex align-items-center gap-2 receive-report-row">
+                <div class="flex-grow-1 receive-report-select" style="min-width: 0;">
                     <select id="inputFoundReport" name="found_report"
                             aria-describedby="foundReportHint"
                             data-url-template="{% url 'storage_receive_prefill' 12345 %}"
                             data-search-placeholder="{% trans 'Search reports' %}"
                             data-no-results="{% trans 'Nothing found' %}">
-                        <option value="">{% trans "Not linked — staff entry" %}</option>
+                        <option value="">{% trans "Not linked - staff entry" %}</option>
                         {% for report_pk, report_label in found_report_choices %}
                         <option value="{{ report_pk }}"
                                 {% if submitted.found_report == report_pk|stringformat:"s" %}selected{% endif %}>{{ report_label }}</option>
                         {% endfor %}
                     </select>
-                    <p class="lnf-hint mb-0 mt-2" id="foundReportHint">
-                        <i class="ti ti-info-circle" aria-hidden="true"></i>
-                        {% trans "Choosing a report prefills the fields below." %}
-                    </p>
-                    <button type="button" id="clearReport" class="btn btn-sm btn-outline-secondary mt-2 d-none">
+                </div>
+                <div class="d-flex gap-2 flex-shrink-0">
+                    <button type="button" id="clearReport"
+                            class="btn btn-outline-secondary{% if not submitted.found_report %} d-none{% endif %}">
                         <i class="ti ti-x" aria-hidden="true"></i> {% trans "Clear" %}
+                    </button>
+                    <button type="button" id="reportDetailsToggle"
+                            class="btn btn-outline-secondary receive-details-toggle{% if not submitted.found_report %} d-none{% endif %}"
+                            data-bs-toggle="collapse" data-bs-target="#reportDetailsCard"
+                            aria-expanded="{% if submitted.found_report %}true{% else %}false{% endif %}"
+                            aria-controls="reportDetailsCard">
+                        <i class="ti ti-report" aria-hidden="true"></i> {% trans "Report details" %}
+                        <i class="ti ti-chevron-down" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
+            <p class="lnf-hint mb-0 mt-2" id="foundReportHint">
+                <i class="ti ti-info-circle" aria-hidden="true"></i>
+                {% trans "Choosing a report prefills the fields below." %}
+            </p>
 
-            <!-- Full details of the selected found report -->
-            <div class="card border-0 shadow-sm mt-3 d-none" id="reportDetailsCard">
-                <div class="card-body p-4">
-                    <h2 class="h6 text-uppercase text-secondary fw-bold mb-3">
-                        <i class="ti ti-report" aria-hidden="true"></i> {% trans "Report details" %}
-                    </h2>
-                    <img id="reportPhoto" class="img-fluid rounded border mb-3 d-none"
-                         alt="" data-alt="{% trans 'Report photo' %}">
-                    <div class="report-titles mb-3">
-                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
-                            <span data-field="title_uz"></span></p>
-                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">English</span>
-                            <span data-field="title_en"></span></p>
-                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">Русский</span>
-                            <span data-field="title_ru"></span></p>
+            <!-- Inline prompt shown only when prefilling would overwrite manual edits. -->
+            <div class="lnf-prefill-prompt d-none mt-3 mb-0" id="prefillPrompt" role="alert">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <span>{% trans "Fields were changed. Replace?" %}</span>
+                    <span class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-light" id="prefillReplace">{% trans "Replace" %}</button>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="prefillKeep">{% trans "Keep" %}</button>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-4">
+        <!-- Mobile order: details card first, then the form. Desktop: form left, details right. -->
+        <div class="col-12 col-lg-8 order-2 order-lg-1">
+            <fieldset class="receive-fieldset">
+                <legend>{% trans "Item information" %}</legend>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-3">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="inputCategory">
+                                    {% trans "Category" %} <span class="text-danger" aria-hidden="true">*</span>
+                                </label>
+                                <select class="form-select" id="inputCategory" name="category" required
+                                        aria-describedby="categoryError">
+                                    <option value="">{% trans "Choose a category." %}</option>
+                                    {% for cat_pk, cat_name in category_choices %}
+                                    <option value="{{ cat_pk }}"
+                                            {% if submitted.category == cat_pk|stringformat:"s" %}selected{% endif %}>{{ cat_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback" id="categoryError">{% trans "Choose a category." %}</div>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label class="form-label" for="inputColor">
+                                    {% trans "Color" %} <span class="text-danger" aria-hidden="true">*</span>
+                                </label>
+                                <select class="form-select" id="inputColor" name="color" required
+                                        aria-describedby="colorError">
+                                    <option value="">{% trans "Choose a color" %}</option>
+                                    {% for clr_pk, clr_name in color_choices %}
+                                    <option value="{{ clr_pk }}"
+                                            {% if submitted.color == clr_pk|stringformat:"s" %}selected{% endif %}>{{ clr_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback" id="colorError">{% trans "Choose a color" %}</div>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label class="form-label" for="inputAdditionalColor">{% trans "Additional color" %}</label>
+                                <!-- BACKEND TODO: persist additional_color (model field + view handling). -->
+                                <select class="form-select" id="inputAdditionalColor" name="additional_color">
+                                    <option value="">{% trans "Not specified" %}</option>
+                                    {% for clr_pk, clr_name in color_choices %}
+                                    <option value="{{ clr_pk }}"
+                                            {% if submitted.additional_color == clr_pk|stringformat:"s" %}selected{% endif %}>{{ clr_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="inputTitle">
+                                    {% trans "Title" %} <span class="text-danger" aria-hidden="true">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="inputTitle" name="title"
+                                       maxlength="120" required
+                                       value="{{ submitted.title|default:'' }}"
+                                       data-error-message="{% trans 'Title is required.' %}"
+                                       aria-describedby="titleError"
+                                       autocomplete="off">
+                                <div class="invalid-feedback" id="titleError">{% trans "Title is required." %}</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="inputDescription">
+                                    {% trans "Description" %} <span class="text-danger" aria-hidden="true">*</span>
+                                </label>
+                                <textarea class="form-control" id="inputDescription" name="description" rows="4" required
+                                          data-error-message="{% trans 'Description is required.' %}"
+                                          aria-describedby="descriptionError">{{ submitted.description|default:'' }}</textarea>
+                                <div class="invalid-feedback" id="descriptionError">{% trans "Description is required." %}</div>
+                            </div>
+                        </div>
                     </div>
-                    <dl class="row report-dl mb-0">
-                        <dt class="col-5">{% trans "Category" %}</dt>
-                        <dd class="col-7" data-field="category_name"></dd>
-                        <dt class="col-5">{% trans "Color" %}</dt>
-                        <dd class="col-7" data-field="color_name"></dd>
-                        <dt class="col-5">{% trans "Location" %}</dt>
-                        <dd class="col-7" data-field="location_name"></dd>
-                        <dt class="col-5">{% trans "Date found" %}</dt>
-                        <dd class="col-7" data-field="date_found"></dd>
-                        <dt class="col-5">{% trans "Custody" %}</dt>
-                        <dd class="col-7" data-field="custody"></dd>
-                        <dt class="col-5">{% trans "Reporter" %}</dt>
-                        <dd class="col-7" data-field="reporter"></dd>
-                        <dt class="col-5">{% trans "Submitted" %}</dt>
-                        <dd class="col-7" data-field="created_at"></dd>
-                        <dt class="col-5">{% trans "Status" %}</dt>
-                        <dd class="col-7" data-field="status_label"></dd>
-                    </dl>
-                    <!-- Description in all three language streams -->
-                    <div class="report-titles mt-3">
-                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
-                            <span data-field="description_uz"></span></p>
-                        <p class="mb-1"><span class="badge text-bg-light border lang-tag">English</span>
-                            <span data-field="description_en"></span></p>
-                        <p class="mb-0"><span class="badge text-bg-light border lang-tag">Русский</span>
-                            <span data-field="description_ru"></span></p>
+                </div>
+            </fieldset>
+
+            <fieldset class="receive-fieldset">
+                <legend>{% trans "Storage details" %}</legend>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-3">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="inputShelf">
+                                    {% trans "Shelf code" %} <span class="text-danger" aria-hidden="true">*</span>
+                                </label>
+                                <!-- BACKEND TODO: set data-shelf-check-url to the shelf-availability endpoint. -->
+                                <input type="text" class="form-control" id="inputShelf" name="shelf_code"
+                                       maxlength="16" required pattern="[A-Z]+\d*-\d{2}"
+                                       value="{{ submitted.shelf_code|default:suggested_shelf }}"
+                                       data-shelf-check-url=""
+                                       data-error-message="{% trans 'Use the format A1-01.' %}"
+                                       aria-describedby="shelfHint shelfError shelfUsed"
+                                       autocomplete="off" spellcheck="false" autocapitalize="characters">
+                                <p class="lnf-hint mb-0 mt-1" id="shelfHint">
+                                    <i class="ti ti-info-circle" aria-hidden="true"></i>
+                                    {% trans "The next free code is suggested and can be changed." %}
+                                    <span class="d-block">{% trans "Example: A1-01" %}</span>
+                                </p>
+                                <div class="invalid-feedback" id="shelfError">{% trans "Use the format A1-01." %}</div>
+                                <div class="text-danger small mt-1 d-none" id="shelfUsed" aria-live="polite">
+                                    {% trans "This shelf code is already in use." %}
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="inputPhoto">{% trans "Photo (JPG/PNG, up to 5 MB)" %}</label>
+                                <input type="file" class="form-control" id="inputPhoto" name="photo"
+                                       accept="image/png,image/jpeg" capture="environment"
+                                       aria-describedby="photoHint photoError">
+                                <div class="form-text" id="photoHint">{% trans "JPG or PNG, up to 5 MB." %}</div>
+                                <div class="invalid-feedback" id="photoError">{% trans "Photo must be at most 5 MB." %}</div>
+                                <div class="mt-2 d-none" id="photoPreviewWrap">
+                                    <img id="photoPreview" class="receive-photo-preview" alt="">
+                                </div>
+                                <!-- BACKEND TODO: honour use_report_photo and persist the choice. -->
+                                <div class="form-check mt-3 d-none" id="useReportPhotoWrap">
+                                    <input class="form-check-input" type="checkbox" value="1"
+                                           id="useReportPhoto" name="use_report_photo"
+                                           {% if submitted.use_report_photo %}checked{% endif %}>
+                                    <label class="form-check-label" for="useReportPhoto">
+                                        {% trans "Use the photo from the report" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                        <dd class="col-12 mt-1 d-none" data-field-row="finder_contact_allowed">
-                            <span class="badge text-bg-success">
-                                <i class="ti ti-phone-call" aria-hidden="true"></i>
-                                {% trans "Finder allows contact" %}
-                            </span>
-                        </dd>
-                    </dl>
+                </div>
+            </fieldset>
+
+            <div class="d-flex flex-wrap gap-2 mt-2 receive-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-device-floppy" aria-hidden="true"></i> {% trans "Save & register" %}
+                </button>
+                <!-- BACKEND TODO: detect save_and_add and redirect back to the receive form. -->
+                <button type="submit" name="save_and_add" value="1" class="btn btn-outline-primary">
+                    <i class="ti ti-plus" aria-hidden="true"></i> {% trans "Save and add another" %}
+                </button>
+                <a class="btn btn-outline-secondary" href="{% url 'storage_item_list' %}" id="cancelLink">
+                    {% trans "Cancel" %}
+                </a>
+            </div>
+        </div>
+
+        <!-- Details column. On mobile order-1 puts it right after Step 1; on
+             desktop it becomes the sticky right sidebar. -->
+        <div class="col-12 col-lg-4 order-1 order-lg-2">
+            <div class="report-details-sticky">
+                <div class="collapse{% if submitted.found_report %} show{% endif %}{% if not submitted.found_report %} d-none{% endif %}"
+                     id="reportDetailsCard">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <h2 class="h6 text-uppercase text-secondary fw-bold mb-3">
+                                <i class="ti ti-report" aria-hidden="true"></i> {% trans "Report details" %}
+                            </h2>
+                            <img id="reportPhoto" class="img-fluid rounded border mb-3 d-none"
+                                 alt="" data-alt="{% trans 'Report photo' %}">
+                            <div class="report-titles mb-3">
+                                <p class="mb-1"><span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                                    <span data-field="title_uz"></span></p>
+                                <p class="mb-1"><span class="badge text-bg-light border lang-tag">English</span>
+                                    <span data-field="title_en"></span></p>
+                                <p class="mb-1"><span class="badge text-bg-light border lang-tag">Русский</span>
+                                    <span data-field="title_ru"></span></p>
+                            </div>
+                            <dl class="row report-dl mb-0">
+                                <dt class="col-5">{% trans "Category" %}</dt>
+                                <dd class="col-7" data-field="category_name"></dd>
+                                <dt class="col-5">{% trans "Color" %}</dt>
+                                <dd class="col-7" data-field="color_name"></dd>
+                                <dt class="col-5">{% trans "Location" %}</dt>
+                                <dd class="col-7" data-field="location_name"></dd>
+                                <dt class="col-5">{% trans "Date found" %}</dt>
+                                <dd class="col-7" data-field="date_found"></dd>
+                                <dt class="col-5">{% trans "Custody" %}</dt>
+                                <dd class="col-7" data-field="custody"></dd>
+                                <dt class="col-5">{% trans "Reporter" %}</dt>
+                                <dd class="col-7" data-field="reporter"></dd>
+                                <dt class="col-5">{% trans "Submitted" %}</dt>
+                                <dd class="col-7" data-field="created_at"></dd>
+                                <dt class="col-5">{% trans "Status" %}</dt>
+                                <dd class="col-7" data-field="status_label"></dd>
+                                <dt class="col-5 d-none" data-field-row="finder_contact_allowed">{% trans "Contact consent" %}</dt>
+                                <dd class="col-7 d-none" data-field-row="finder_contact_allowed">
+                                    <span class="badge text-bg-success">
+                                        <i class="ti ti-phone-call" aria-hidden="true"></i>
+                                        {% trans "Finder allows contact" %}
+                                    </span>
+                                </dd>
+                            </dl>
+                            <div class="report-titles mt-3">
+                                <p class="mb-1"><span class="badge text-bg-light border lang-tag">O‛zbekcha</span>
+                                    <span data-field="description_uz"></span></p>
+                                <p class="mb-1"><span class="badge text-bg-light border lang-tag">English</span>
+                                    <span data-field="description_en"></span></p>
+                                <p class="mb-0"><span class="badge text-bg-light border lang-tag">Русский</span>
+                                    <span data-field="description_ru"></span></p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -172,59 +394,272 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{% trans "Use the format A1-01." as msg_shelf_format %}
+{% trans "This shelf code is already in use." as msg_shelf_used %}
+{% trans "Shelf code is required." as msg_shelf_required %}
+{% trans "Only JPG and PNG images are allowed." as msg_photo_type %}
+{% trans "Photo must be at most 5 MB." as msg_photo_size %}
+{% trans "Please fill in this field." as msg_generic_field %}
+{% trans "You have unsaved changes. Leave the page?" as msg_unsaved %}
 <script src="{% static 'vendor/jquery/jquery-3.7.1.min.js' %}"></script>
 <script src="{% static 'vendor/select2/js/select2.min.js' %}"></script>
 <script>
     (function () {
+        "use strict";
+
         var $select = jQuery("#inputFoundReport");
         if (!$select.length) return;
         var select = $select[0];
+        var form = document.getElementById("receiveForm");
         var card = document.getElementById("reportDetailsCard");
         var clearBtn = document.getElementById("clearReport");
+        var detailsToggle = document.getElementById("reportDetailsToggle");
+        var prompt = document.getElementById("prefillPrompt");
+        var useReportPhoto = document.getElementById("useReportPhoto");
+        var useReportPhotoWrap = document.getElementById("useReportPhotoWrap");
+        var inputPhoto = document.getElementById("inputPhoto");
+        var photoPreview = document.getElementById("photoPreview");
+        var photoPreviewWrap = document.getElementById("photoPreviewWrap");
+        var photoError = document.getElementById("photoError");
+        var inputShelf = document.getElementById("inputShelf");
+        var shelfError = document.getElementById("shelfError");
+        var shelfUsed = document.getElementById("shelfUsed");
+        var summary = document.getElementById("formErrorSummary");
+        var summaryList = document.getElementById("formErrorList");
+        var cancelLink = document.getElementById("cancelLink");
+
+        var uiLang = (function () {
+            var lang = (document.documentElement.lang || "uz").toLowerCase().slice(0, 2);
+            return ["uz", "ru", "en"].indexOf(lang) === -1 ? "uz" : lang;
+        })();
+
+        // The serializer is expected to return title_uz/en/ru and
+        // description_uz/en/ru. Use the interface language with Uzbek as the
+        // fallback so the name and description always come from one language.
+        // BACKEND TODO: make the serializer's "description" field use
+        // description_in(lang) as well and stop storing HTML-escaped text.
+        function localizedText(data, base) {
+            var value = data[base + "_" + uiLang];
+            if (!value) value = data[base + "_uz"];
+            if (!value) value = data[base];
+            return value || "";
+        }
+
+        // Older imported rows contain HTML entities (sometimes double-escaped,
+        // e.g. &amp;quot;Hasan&amp;quot;). Decode at most twice and always
+        // write the result via textContent/value so no HTML is injected.
+        // BACKEND TODO: store unescaped plain text; this is a display fix.
+        function decodeEntities(value) {
+            if (value === null || value === undefined) return "";
+            var text = String(value);
+            for (var i = 0; i < 2; i++) {
+                if (!/&(?:[a-z]+|#\d+|#x[0-9a-f]+);/i.test(text)) break;
+                var textarea = document.createElement("textarea");
+                textarea.innerHTML = text;
+                var decoded = textarea.value;
+                if (decoded === text) break;
+                text = decoded;
+            }
+            return text;
+        }
+
+        function decodeOptionLabels(element) {
+            Array.prototype.forEach.call(element.options, function (option) {
+                var decoded = decodeEntities(option.textContent);
+                if (decoded !== option.textContent) option.textContent = decoded;
+            });
+        }
+
+        // BACKEND TODO: order the category queryset with "Boshqalar" last.
+        // This tiny client-side fallback keeps the visible list usable now.
+        function moveOthersLast(element) {
+            var labels = {"boshqalar": true, "другие": true, "others": true};
+            var others = null;
+            Array.prototype.forEach.call(element.options, function (option) {
+                if (labels[option.textContent.trim().toLowerCase()]) others = option;
+            });
+            if (others) element.appendChild(others);
+        }
+
+        decodeOptionLabels(select);
+        [document.getElementById("inputCategory"), document.getElementById("inputColor"),
+         document.getElementById("inputAdditionalColor")].forEach(function (el) {
+            if (el) decodeOptionLabels(el);
+        });
+        moveOthersLast(document.getElementById("inputCategory"));
+
         var filled = {
             title: document.getElementById("inputTitle"),
             description: document.getElementById("inputDescription"),
             category: document.getElementById("inputCategory"),
             color: document.getElementById("inputColor")
         };
+        var touched = {
+            title: Boolean(filled.title.value.trim()),
+            description: Boolean(filled.description.value.trim()),
+            category: Boolean(filled.category.value),
+            color: Boolean(filled.color.value)
+        };
+        var applyingPrefill = false;
+        var pendingData = null;
+        var dirty = false;
+        var submitting = false;
+        var shelfUsedFlag = false;
+        var shelfCheckTimer = null;
+        var shelfCheckUrl = inputShelf.dataset.shelfCheckUrl || "";
+        var photoPreviewUrl = null;
+        var selfValidating = ["inputShelf", "inputPhoto"];
+        var reportRequestSeq = 0;
 
-        function setFields(data) {
-            filled.title.value = data.title;
-            filled.description.value = data.description;
-            if (data.category) filled.category.value = String(data.category);
-            if (data.color) filled.color.value = String(data.color);
+        // Remember which prefill targets the staff member edited by hand. The
+        // prefill prompt is only shown when replacing one of these would lose
+        // that edit.
+        Object.keys(filled).forEach(function (key) {
+            var el = filled[key];
+            var eventName = el.tagName === "SELECT" ? "change" : "input";
+            el.addEventListener(eventName, function () {
+                if (!applyingPrefill) touched[key] = true;
+            });
+        });
+
+        function markDirty() {
+            if (!applyingPrefill && !submitting) dirty = true;
         }
 
+        function hasOption(el, value) {
+            if (!value) return false;
+            return Array.prototype.some.call(el.options, function (option) {
+                return option.value === value;
+            });
+        }
+
+        function targetValue(data, key) {
+            if (key === "title") return decodeEntities(localizedText(data, "title"));
+            if (key === "description") return decodeEntities(localizedText(data, "description"));
+            if (key === "category") return data.category ? String(data.category) : "";
+            if (key === "color") return data.color ? String(data.color) : "";
+            return "";
+        }
+
+        function isEditable(el, key) {
+            return !String(el.value || "").trim() || !touched[key];
+        }
+
+        function highlightField(el) {
+            el.classList.remove("lnf-autofilled");
+            void el.offsetWidth; /* restart the CSS animation */
+            el.classList.add("lnf-autofilled");
+            window.setTimeout(function () { el.classList.remove("lnf-autofilled"); }, 2100);
+        }
+
+        // Fill one field. With overwrite=false only empty/untouched fields are
+        // written, so manual edits are never lost silently.
+        function setFields(data, overwrite) {
+            applyingPrefill = true;
+            Object.keys(filled).forEach(function (key) {
+                var el = filled[key];
+                var next = targetValue(data, key);
+                if (!next) return;
+                if ((key === "category" || key === "color") && !hasOption(el, next)) return;
+                if (!overwrite && !isEditable(el, key)) return;
+                if (String(el.value || "") === next) return;
+                el.value = next;
+                highlightField(el);
+                touched[key] = false; /* auto-filled, not a manual edit */
+            });
+            applyingPrefill = false;
+        }
+
+        function needsConfirmation(data) {
+            return Object.keys(filled).some(function (key) {
+                var el = filled[key];
+                var next = targetValue(data, key);
+                if (!next) return false;
+                if ((key === "category" || key === "color") && !hasOption(el, next)) return false;
+                return !isEditable(el, key) && String(el.value || "") !== next;
+            });
+        }
+
+        function hidePrompt() {
+            pendingData = null;
+            prompt.classList.add("d-none");
+        }
+
+        function showPrompt(data) {
+            pendingData = data;
+            prompt.classList.remove("d-none");
+        }
+
+        function setUseReportPhoto(hasPhoto) {
+            useReportPhotoWrap.classList.toggle("d-none", !hasPhoto);
+            if (!hasPhoto) {
+                useReportPhoto.checked = false;
+                useReportPhoto.disabled = true;
+                inputPhoto.disabled = false;
+            } else {
+                useReportPhoto.disabled = false;
+                inputPhoto.disabled = useReportPhoto.checked;
+            }
+        }
+
+        function clearPhotoPreview() {
+            if (photoPreviewUrl) {
+                URL.revokeObjectURL(photoPreviewUrl);
+                photoPreviewUrl = null;
+            }
+            photoPreview.removeAttribute("src");
+            photoPreviewWrap.classList.add("d-none");
+        }
+
+        function setPhotoMessage(message) {
+            inputPhoto.setCustomValidity(message || "");
+            inputPhoto.dataset.errorMessage = message || "";
+            inputPhoto.classList.toggle("is-invalid", Boolean(message));
+            photoError.textContent = message || "{{ msg_photo_size|escapejs }}";
+        }
+
+        // ---------- Report details card + prefill -------------------------
         function renderCard(data) {
             var photo = document.getElementById("reportPhoto");
-            if (photo) {
-                if (data.photo_url) {
-                    photo.src = data.photo_url;
-                    photo.alt = photo.dataset.alt || "";
-                    photo.classList.remove("d-none");
-                } else {
-                    photo.removeAttribute("src");
-                    photo.classList.add("d-none");
-                }
+            if (data.photo_url) {
+                photo.src = data.photo_url;
+                photo.alt = photo.dataset.alt || "";
+                photo.classList.remove("d-none");
+            } else {
+                photo.removeAttribute("src");
+                photo.classList.add("d-none");
             }
             card.querySelectorAll("[data-field]").forEach(function (el) {
                 var value = data[el.dataset.field];
-                el.textContent = (value === null || value === undefined || value === "") ? "—" : value;
+                el.textContent = (value === null || value === undefined || value === "")
+                    ? "—" : decodeEntities(value);
             });
-            var contactRow = card.querySelector("[data-field-row='finder_contact_allowed']");
-            if (contactRow) {
-                contactRow.classList.toggle("d-none", !data.finder_contact_allowed);
-            }
+            card.querySelectorAll("[data-field-row='finder_contact_allowed']").forEach(function (el) {
+                el.classList.toggle("d-none", !data.finder_contact_allowed);
+            });
+            setUseReportPhoto(Boolean(data.photo_url));
+        }
+
+        function showCard() {
             card.classList.remove("d-none");
             clearBtn.classList.remove("d-none");
-            if (typeof card.scrollIntoView === "function") {
-                card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            detailsToggle.classList.remove("d-none");
+            detailsToggle.setAttribute("aria-expanded", "true");
+            if (window.bootstrap && bootstrap.Collapse) {
+                bootstrap.Collapse.getOrCreateInstance(card, {toggle: false}).show();
+            } else {
+                card.classList.add("show");
             }
         }
 
         function hideCard() {
+            hidePrompt();
+            setUseReportPhoto(false);
             card.classList.add("d-none");
+            card.classList.remove("show");
             clearBtn.classList.add("d-none");
+            detailsToggle.classList.add("d-none");
+            detailsToggle.setAttribute("aria-expanded", "false");
             var photo = document.getElementById("reportPhoto");
             if (photo) {
                 photo.removeAttribute("src");
@@ -233,11 +668,25 @@
             card.querySelectorAll("[data-field]").forEach(function (el) {
                 el.textContent = "";
             });
-            var contactRow = card.querySelector("[data-field-row='finder_contact_allowed']");
-            if (contactRow) contactRow.classList.add("d-none");
+            card.querySelectorAll("[data-field-row='finder_contact_allowed']").forEach(function (el) {
+                el.classList.add("d-none");
+            });
         }
 
-        function loadReport(reportId) {
+        function handleReportData(data) {
+            renderCard(data);
+            showCard();
+            if (needsConfirmation(data)) {
+                showPrompt(data);
+            } else {
+                hidePrompt();
+                setFields(data, false);
+            }
+        }
+
+        function loadReport(reportId, options) {
+            var opts = options || {};
+            var seq = ++reportRequestSeq;
             if (!reportId) {
                 hideCard();
                 return;
@@ -246,15 +695,161 @@
             fetch(url).then(function (response) {
                 return response.ok ? response.json() : null;
             }).then(function (data) {
+                // Ignore a slow response for a report the user has already
+                // switched away from (rapid changes must not overwrite the
+                // current card or pending prompt).
+                if (seq !== reportRequestSeq) return;
                 if (!data) return;
-                setFields(data);
-                renderCard(data);
-            });
+                if (opts.cardOnly) {
+                    // A failed POST keeps the submitted field values; only the
+                    // details card needs to be restored on load.
+                    renderCard(data);
+                    showCard();
+                } else {
+                    handleReportData(data);
+                }
+            }).catch(function () { /* keep the native form usable */ });
         }
 
+        // ---------- Shelf validation (format + optional availability) -----
+        function updateShelfValidity() {
+            var value = inputShelf.value.trim();
+            var formatOk = !value || /^[A-Z]+\d*-\d{2}$/.test(value);
+            shelfUsed.classList.toggle("d-none", !shelfUsedFlag);
+            if (shelfUsedFlag) {
+                shelfError.classList.add("d-none");
+                inputShelf.classList.add("is-invalid");
+                inputShelf.setCustomValidity("{{ msg_shelf_used|escapejs }}");
+                inputShelf.dataset.errorMessage = "{{ msg_shelf_used|escapejs }}";
+            } else if (!formatOk) {
+                shelfError.classList.remove("d-none");
+                shelfError.textContent = "{{ msg_shelf_format|escapejs }}";
+                inputShelf.classList.add("is-invalid");
+                inputShelf.setCustomValidity("{{ msg_shelf_format|escapejs }}");
+                inputShelf.dataset.errorMessage = "{{ msg_shelf_format|escapejs }}";
+            } else if (!value) {
+                shelfError.classList.remove("d-none");
+                shelfError.textContent = "{{ msg_shelf_required|escapejs }}";
+                inputShelf.classList.remove("is-invalid");
+                inputShelf.setCustomValidity("");
+                inputShelf.dataset.errorMessage = "{{ msg_shelf_required|escapejs }}";
+            } else {
+                shelfError.classList.remove("d-none");
+                shelfError.textContent = "{{ msg_shelf_format|escapejs }}";
+                inputShelf.classList.remove("is-invalid");
+                inputShelf.setCustomValidity("");
+                inputShelf.dataset.errorMessage = "{{ msg_shelf_format|escapejs }}";
+            }
+        }
+
+        function checkShelfUsed() {
+            // BACKEND TODO: provide the endpoint and set data-shelf-check-url.
+            if (!shelfCheckUrl || !inputShelf.value.trim()) {
+                shelfUsedFlag = false;
+                updateShelfValidity();
+                return;
+            }
+            var url = shelfCheckUrl + (shelfCheckUrl.indexOf("?") === -1 ? "?" : "&")
+                + "code=" + encodeURIComponent(inputShelf.value.trim());
+            fetch(url).then(function (response) {
+                return response.ok ? response.json() : null;
+            }).then(function (data) {
+                shelfUsedFlag = Boolean(data && (data.exists || data.available === false));
+                updateShelfValidity();
+            }).catch(function () { /* availability check is optional */ });
+        }
+
+        function scheduleShelfCheck() {
+            window.clearTimeout(shelfCheckTimer);
+            shelfCheckTimer = window.setTimeout(checkShelfUsed, 450);
+        }
+
+        // ---------- Photo validation + preview ----------------------------
+        function validatePhoto() {
+            var file = inputPhoto.files && inputPhoto.files[0];
+            if (!file) {
+                setPhotoMessage("");
+                clearPhotoPreview();
+                return;
+            }
+            if (["image/jpeg", "image/png"].indexOf(file.type) === -1) {
+                setPhotoMessage("{{ msg_photo_type|escapejs }}");
+                clearPhotoPreview();
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                setPhotoMessage("{{ msg_photo_size|escapejs }}");
+                clearPhotoPreview();
+                return;
+            }
+            setPhotoMessage("");
+            clearPhotoPreview();
+            if (window.URL && URL.createObjectURL) {
+                photoPreviewUrl = URL.createObjectURL(file);
+                photoPreview.src = photoPreviewUrl;
+                photoPreviewWrap.classList.remove("d-none");
+            }
+        }
+
+        // ---------- Error summary + invalid feedback ----------------------
+        function fieldLabel(field) {
+            var label = form.querySelector('label[for="' + field.id + '"]');
+            return label ? label.textContent.replace(/\*/g, "").trim() : (field.name || field.id);
+        }
+
+        function fieldMessage(field) {
+            return field.dataset.errorMessage || "{{ msg_generic_field|escapejs }}";
+        }
+
+        function refreshSummary() {
+            if (!summaryList) return;
+            summaryList.innerHTML = "";
+            var invalid = Array.prototype.slice.call(form.querySelectorAll(":invalid"));
+            invalid.forEach(function (field) {
+                if (!field.id) return;
+                var li = document.createElement("li");
+                var link = document.createElement("a");
+                link.href = "#" + field.id;
+                link.textContent = fieldLabel(field) + ": " + fieldMessage(field);
+                link.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    field.focus();
+                    if (field.scrollIntoView) field.scrollIntoView({behavior: "smooth", block: "center"});
+                });
+                li.appendChild(link);
+                summaryList.appendChild(li);
+            });
+            var serverList = document.getElementById("serverErrorList");
+            var hasServer = serverList && serverList.children.length > 0;
+            summary.classList.toggle("d-none", !invalid.length && !hasServer);
+        }
+
+        form.addEventListener("invalid", function (event) {
+            event.target.classList.add("is-invalid");
+            window.setTimeout(refreshSummary, 0);
+        }, true);
+
+        form.addEventListener("input", function (event) {
+            if (selfValidating.indexOf(event.target.id) === -1) {
+                event.target.classList.remove("is-invalid");
+            }
+            markDirty();
+            if (!summary.classList.contains("d-none")) window.setTimeout(refreshSummary, 0);
+        });
+
+        form.addEventListener("change", function (event) {
+            if (selfValidating.indexOf(event.target.id) === -1) {
+                event.target.classList.remove("is-invalid");
+            }
+            markDirty();
+            if (!summary.classList.contains("d-none")) window.setTimeout(refreshSummary, 0);
+        });
+
+        // ---------- Prefill / report selection ---------------------------
         // Select2 fires its change event through jQuery's trigger(), which does
         // NOT reach native addEventListener listeners — bind through jQuery.
         $select.on("change", function () {
+            markDirty();
             loadReport($select.val());
         });
 
@@ -262,6 +857,63 @@
             $select.val("").trigger("change");
         });
 
+        document.getElementById("prefillReplace").addEventListener("click", function () {
+            if (pendingData) setFields(pendingData, true);
+            hidePrompt();
+        });
+
+        document.getElementById("prefillKeep").addEventListener("click", function () {
+            if (pendingData) setFields(pendingData, false);
+            hidePrompt();
+        });
+
+        useReportPhoto.addEventListener("change", function () {
+            inputPhoto.disabled = useReportPhoto.checked;
+            if (useReportPhoto.checked) {
+                inputPhoto.value = "";
+                setPhotoMessage("");
+                clearPhotoPreview();
+            }
+        });
+
+        inputPhoto.addEventListener("change", validatePhoto);
+
+        inputShelf.addEventListener("input", function () {
+            inputShelf.value = inputShelf.value.toUpperCase();
+            shelfUsedFlag = false;
+            updateShelfValidity();
+            scheduleShelfCheck();
+        });
+
+        inputShelf.addEventListener("blur", function () {
+            inputShelf.value = inputShelf.value.toUpperCase();
+            checkShelfUsed();
+        });
+
+        // ---------- Unsaved-changes guard --------------------------------
+        cancelLink.addEventListener("click", function (event) {
+            if (!dirty || submitting) return;
+            if (!window.confirm("{{ msg_unsaved|escapejs }}")) {
+                event.preventDefault();
+                return;
+            }
+            submitting = true; /* suppress the duplicate beforeunload prompt */
+        });
+
+        window.addEventListener("beforeunload", function (event) {
+            if (!dirty || submitting) return undefined;
+            event.preventDefault();
+            event.returnValue = "";
+            return "";
+        });
+
+        // Native constraint validation fires "invalid" but not "submit", so
+        // the summary is refreshed from the invalid handler above.
+        form.addEventListener("submit", function () {
+            if (form.checkValidity()) submitting = true;
+        });
+
+        // ---------- Select2 (unchanged config, placeholder kept) ----------
         try {
             $select.select2({
                 theme: "bootstrap-5",
@@ -281,10 +933,16 @@
             /* Select2 failed to initialize: the native select stays usable. */
         }
 
-        // After a POST validation error the report stays selected: restore the card.
+        // After a POST validation error the report stays selected: restore the
+        // card without overwriting the submitted field values.
         if ($select.val()) {
-            loadReport($select.val());
+            loadReport($select.val(), {cardOnly: true});
+        } else {
+            hideCard();
         }
+
+        inputShelf.value = inputShelf.value.toUpperCase();
+        updateShelfValidity();
     })();
 </script>
 {% endblock %}

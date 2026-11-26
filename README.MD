@@ -77,6 +77,7 @@ The Telegram bot handle is the one assigned to the configured `BOT_TOKEN`. If yo
 - Return (handover), dispose and transfer actions; dispose and transfer require a note, and every transition is written to the audit log.
 - Confidential handover act: receiver name and **last four digits** of the student/staff ID.
 - Lost-report list and detail with search, category, location, status and date-range filters.
+- Found-report table with search, status, custody, category and date-range filters; reporter, contact-consent and linked-storage-item columns.
 - Match review queue grouped by lost report, with confirm/reject decisions and score breakdowns.
 - Reference-data management for locations, categories and colours, with delete guards and automatic translation of blank fields.
 - Monthly inventory CSV export that follows the active status filter.
@@ -315,6 +316,7 @@ All office pages require an authenticated **staff** user. Anonymous visitors are
 | `/storage/items/<id>/handover/` | Confidential handover act |
 | `/storage/export/` | Monthly inventory CSV export |
 | `/reports/lost/` | Lost-report list |
+| `/reports/found/` | Found-report list (custody, consent, linked item) |
 | `/reports/lost/<id>/` | Lost-report detail with match review |
 | `/reports/matches/` | Global match review queue |
 | `/catalog/locations/` | Campus locations (list, create, edit, delete) |
@@ -602,18 +604,19 @@ The compiled `.mo` files are committed. After editing a `.po` file, rebuild it w
 The graded test suite uses Django's test runner:
 
 ```bash
-docker compose exec -T -e DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,web,testserver web python web/manage.py test catalog matching storage bot_app
+docker compose exec -T -e DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,web,testserver web python web/manage.py test catalog matching storage bot_app reports
 ```
 
 The `testserver` host is required because Django's test client sends requests with that host name.
 
-Current result: **53 tests, all passing**.
+Current result: **71 tests, all passing**.
 
 | App | Covered behaviour |
 | --- | --- |
 | `catalog` | Reference-data rules, translation fallbacks, seed consistency and idempotency |
 | `matching` | Scoring rules, threshold, duplicate-suggestion guard, confirm/reject transitions |
 | `storage` | Retention calculation, status transitions, handover close-out, audit logs, status-aware CSV export |
+| `reports` | Office found-report table: staff gate, filters, linked item and consent columns |
 | `bot_app` | Telegram user model, digest idempotency and retry behaviour, notification safety |
 
 Additional checks run during development:
