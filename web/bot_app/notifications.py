@@ -20,8 +20,11 @@ from django.utils import timezone
 from matching.models import MatchSuggestion
 from matching.services import (
     OUTCOME_CONFIRMED,
+    OUTCOME_ITEM_UNAVAILABLE,
     OUTCOME_NOOP,
     OUTCOME_REJECTED,
+    OUTCOME_REPORT_CLOSED,
+    OUTCOME_SOURCE_UNAVAILABLE,
     apply_decision,
 )
 from reports.models import LostReport
@@ -345,12 +348,14 @@ def decide_from_bot(telegram_user, suggestion_id: int, action: str) -> str:
     if suggestion.lost_report.reporter_id != telegram_user.pk:
         return OUTCOME_NOT_YOURS
     outcome = apply_decision(suggestion, action, reviewer=None)
-    if outcome == OUTCOME_NOOP:
-        return OUTCOME_ALREADY
-    if outcome == OUTCOME_CONFIRMED:
-        return OUTCOME_CONFIRMED
-    if outcome == OUTCOME_REJECTED:
-        return OUTCOME_REJECTED
+    if outcome in (OUTCOME_CONFIRMED, OUTCOME_REJECTED):
+        return outcome
+    if outcome in (
+        OUTCOME_REPORT_CLOSED,
+        OUTCOME_ITEM_UNAVAILABLE,
+        OUTCOME_SOURCE_UNAVAILABLE,
+    ):
+        return outcome
     return OUTCOME_ALREADY
 
 

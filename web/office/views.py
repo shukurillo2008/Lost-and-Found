@@ -8,7 +8,7 @@ import csv
 import json
 import re
 import urllib.request
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlencode
@@ -21,7 +21,7 @@ from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.db.models.functions import TruncWeek
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -35,7 +35,15 @@ from bot_app.notifications import notify_handover, notify_match_confirmed, notif
 from catalog.models import Category, Color, Location
 from matching.engine import score_breakdown, score_from_breakdown
 from matching.models import Handover, MatchSuggestion
-from matching.services import OUTCOME_NOOP, apply_decision
+from matching.services import (
+    OUTCOME_CONFIRMED,
+    OUTCOME_ITEM_UNAVAILABLE,
+    OUTCOME_NOOP,
+    OUTCOME_REJECTED,
+    OUTCOME_REPORT_CLOSED,
+    OUTCOME_SOURCE_UNAVAILABLE,
+    apply_decision,
+)
 from reports.models import FoundReport, LostReport
 from storage.models import ItemStatusLog, StoredItem
 
@@ -136,7 +144,7 @@ def dashboard_page(request: HttpRequest) -> HttpResponse:
         retention_until__gte=today, retention_until__lte=today + timedelta(days=7)
     ).count()
     open_reports = LostReport.objects.filter(status="open").count()
-    pending_matches = MatchSuggestion.objects.filter(status="suggested").count()
+    pending_matches = MatchSuggestion.objects.actionable().count()
     returned_month = Handover.objects.filter(
         handed_at__month=today.month, handed_at__year=today.year
     ).count()
@@ -376,6 +384,7 @@ def storage_receive(request: HttpRequest) -> HttpResponse:
 
 
 _MAX_PHOTO_BYTES = 5 * 1024 * 1024
+SHELF_CODE_RE = re.compile(r"[A-Z]+\d*-\d{2}")
 
 
 def _next_free_shelf_code() -> str:
@@ -406,9 +415,11 @@ def _next_free_shelf_code() -> str:
 
 def _found_report_choices(lang: str) -> list:
     """Found reports that can still be shelved: physically handed to the
-    office and not yet linked to a stored item."""
+    office, still open, and not yet linked to a stored item."""
     reports = (
-        FoundReport.objects.filter(custody="handed_to_office", stored_item__isnull=True)
+        FoundReport.objects.filter(
+            custody="handed_to_office", status="open", stored_item__isnull=True
+        )
         .select_related("reporter")
         .order_by("-created_at")[:100]
     )
@@ -421,6 +432,18 @@ def _found_report_choices(lang: str) -> list:
         )
         for report in reports
     ]
+
+
+def _category_choices(lang: str) -> list:
+    """Category options with the catch-all row ("Boshqalar") last."""
+    categories = Category.objects.annotate(
+        is_others=Case(
+            When(name_uz__iexact="Boshqalar", then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by("is_others", "name_uz")
+    return [(cat.pk, cat.localized_name(lang)) for cat in categories]
 
 
 def _fetch_telegram_file(file_id: str) -> bytes | None:
@@ -499,16 +522,14 @@ def storage_receive(request: HttpRequest) -> HttpResponse:
     suggestion. "Save & register" creates the StoredItem + the first
     ItemStatusLog entry; linking an open found report marks it registered.
     All parsing/validation lives here (no forms.py); on validation errors
-    the form re-renders with the error list and submitted values.
+    the form re-renders with the error list, field-keyed errors and the
+    submitted values.
     """
     lang = _ui_lang(request)
 
     base_context = {
         "found_report_choices": _found_report_choices(lang),
-        "category_choices": [
-            (cat.pk, cat.localized_name(lang))
-            for cat in Category.objects.order_by("name_uz")
-        ],
+        "category_choices": _category_choices(lang),
         "color_choices": [
             (clr.pk, clr.localized_name(lang))
             for clr in Color.objects.order_by("name_uz")
@@ -518,56 +539,86 @@ def storage_receive(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         title = (request.POST.get("title") or "").strip()
         description = (request.POST.get("description") or "").strip()
-        shelf_code = (request.POST.get("shelf_code") or "").strip()
+        shelf_code = (request.POST.get("shelf_code") or "").strip().upper()
         category_id = request.POST.get("category") or ""
         color_id = request.POST.get("color") or ""
         found_report_id = request.POST.get("found_report") or ""
         photo = request.FILES.get("photo")
+        use_report_photo = bool(request.POST.get("use_report_photo"))
 
         errors = []
+        field_errors = {}
+
+        def add_error(field_id: str, message: str) -> None:
+            errors.append(message)
+            field_errors.setdefault(field_id, message)
+
         if not title:
-            errors.append(_("Title is required."))
+            add_error("inputTitle", _("Title is required."))
         elif len(title) > 120:
-            errors.append(_("Title is too long (max 120 characters)."))
+            add_error("inputTitle", _("Title is too long (max 120 characters)."))
         if not description:
-            errors.append(_("Description is required."))
+            add_error("inputDescription", _("Description is required."))
         if not shelf_code:
-            errors.append(_("Shelf code is required."))
+            add_error("inputShelf", _("Shelf code is required."))
         elif len(shelf_code) > 16:
-            errors.append(_("Shelf code is too long (max 16 characters)."))
+            add_error("inputShelf", _("Shelf code is too long (max 16 characters)."))
+        elif not SHELF_CODE_RE.fullmatch(shelf_code):
+            add_error("inputShelf", _("Use the format A1-01."))
 
         category = None
         if category_id.isdigit() and (found := Category.objects.filter(pk=int(category_id)).first()):
             category = found
         if category is None:
-            errors.append(_("Choose a category."))
+            add_error("inputCategory", _("Choose a category."))
 
         color = None
         if color_id.isdigit() and (found := Color.objects.filter(pk=int(color_id)).first()):
             color = found
         if color is None:
-            errors.append(_("Choose a color."))
+            add_error("inputColor", _("Choose a color."))
 
-        if photo and photo.size > _MAX_PHOTO_BYTES:
-            errors.append(_("Photo must be at most 5 MB."))
+        if photo:
+            if photo.size > _MAX_PHOTO_BYTES:
+                add_error("inputPhoto", _("Photo must be at most 5 MB."))
+            elif photo.content_type not in ("image/jpeg", "image/png"):
+                add_error("inputPhoto", _("Only JPG and PNG images are allowed."))
 
         if shelf_code and StoredItem.objects.filter(
             status="in_storage", shelf_code=shelf_code
         ).exists():
-            errors.append(_("Shelf code is already occupied."))
+            add_error("inputShelf", _("Shelf code is already occupied."))
 
         found_report = None
-        if found_report_id.isdigit():
-            found_report = FoundReport.objects.filter(pk=int(found_report_id)).first()
-            if found_report and StoredItem.objects.filter(found_report_id=found_report.pk).exists():
-                errors.append(_("That found report is already linked to a stored item."))
-                found_report = None
+        if found_report_id:
+            if not found_report_id.isdigit():
+                add_error("inputFoundReport", _("That found report does not exist."))
+            else:
+                found_report = FoundReport.objects.filter(pk=int(found_report_id)).first()
+                if found_report is None:
+                    add_error("inputFoundReport", _("That found report does not exist."))
+                elif found_report.custody != "handed_to_office":
+                    add_error(
+                        "inputFoundReport",
+                        _("Only reports handed to the office can be linked."),
+                    )
+                    found_report = None
+                elif found_report.status != "open":
+                    add_error("inputFoundReport", _("Only open found reports can be linked."))
+                    found_report = None
+                elif StoredItem.objects.filter(found_report_id=found_report.pk).exists():
+                    add_error(
+                        "inputFoundReport",
+                        _("That found report is already linked to a stored item."),
+                    )
+                    found_report = None
 
         if errors:
             return render(request, "storage/receive_form.html", {
                 **base_context,
                 "suggested_shelf": _next_free_shelf_code(),
                 "error": " ".join(errors),
+                "field_errors": field_errors,
                 "submitted": {
                     "title": title,
                     "description": description,
@@ -575,6 +626,7 @@ def storage_receive(request: HttpRequest) -> HttpResponse:
                     "category": category_id,
                     "color": color_id,
                     "found_report": found_report_id,
+                    "use_report_photo": use_report_photo,
                 },
             })
 
@@ -588,8 +640,6 @@ def storage_receive(request: HttpRequest) -> HttpResponse:
         )
         if found_report:
             item.found_report = found_report
-        if photo:
-            item.photo = photo
         item.save()  # auto_now_add received_at + retention from the category
 
         ItemStatusLog.objects.create(
@@ -599,33 +649,66 @@ def storage_receive(request: HttpRequest) -> HttpResponse:
             staff=request.user,
             note=_("Item registered."),
         )
-        # Auto-copy: a linked report's photo (Telegram file_id) becomes the
-        # item's own stored photo; on failure staff can still upload manually.
-        if found_report and found_report.photo_file_id and not item.photo:
+
+        # Photo priority: an explicitly ticked "use the report photo" wins;
+        # otherwise an uploaded file is used; a linked report's photo is the
+        # legacy fallback when the staff member did not upload anything.
+        copy_report_photo = bool(
+            found_report
+            and found_report.photo_file_id
+            and (use_report_photo or not photo)
+        )
+        photo_attached = False
+        if copy_report_photo:
             report_bytes = _fetch_telegram_file(found_report.photo_file_id)
             if report_bytes:
                 item.photo.save(
                     f"from-report-{found_report.pk}.jpg",
                     ContentFile(report_bytes),
-                    save=False,
+                    save=True,
                 )
-                item.save()
+                photo_attached = True
             else:
                 messages.warning(
                     request,
                     _("Couldn't copy the report photo — upload it manually."),
                 )
+        if photo and not photo_attached:
+            item.photo = photo
+            item.save()
+
         if found_report and found_report.status == "open":
             found_report.status = "registered"
             found_report.save()
+        if found_report:
+            # Matches made while the finder still held the item carry only
+            # the found-report source. Point the live ones (pending and
+            # confirmed) at the freshly received item so a later confirmation
+            # and the handover both resolve the physical object.
+            found_report.match_suggestions.filter(
+                status__in=("suggested", "confirmed"), stored_item__isnull=True
+            ).update(stored_item=item)
 
         messages.success(request, _("Item registered."))
+        if request.POST.get("save_and_add"):
+            return redirect("storage_receive")
         return redirect("storage_item_detail", item_id=item.pk)
 
     return render(request, "storage/receive_form.html", {
         **base_context,
         "suggested_shelf": _next_free_shelf_code(),
     })
+
+
+@staff_required
+def storage_shelf_check(request: HttpRequest) -> JsonResponse:
+    """Availability probe used by the receive form's shelf-code input."""
+    code = (request.GET.get("code") or "").strip().upper()
+    exists = bool(code) and StoredItem.objects.filter(
+        status="in_storage", shelf_code=code
+    ).exists()
+    return JsonResponse({"code": code, "exists": exists, "available": not exists})
+
 
 
 @staff_required
@@ -649,7 +732,7 @@ def storage_receive_prefill(request: HttpRequest, report_id: int) -> JsonRespons
     }
     return JsonResponse({
         "title": report.title_in(lang),
-        "description": report.description,
+        "description": report.description_in(lang),
         "category": report.category_id,
         "color": report.color_id,
         # The title is kept in three language streams — show all of them
@@ -823,7 +906,13 @@ def storage_export_csv(request: HttpRequest) -> HttpResponse:
     if status not in ("in_storage", "returned", "disposed", "transferred", "all"):
         status = "in_storage"
 
-    items = StoredItem.objects.filter(received_at__year=year, received_at__month=month)
+    # The month is a local-time month: a row received at 23:30 UTC on the
+    # last day of the month belongs to the next local day/month.
+    start = timezone.make_aware(datetime(year, month, 1))
+    end = timezone.make_aware(
+        datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    )
+    items = StoredItem.objects.filter(received_at__gte=start, received_at__lt=end)
     if status != "all":
         items = items.filter(status=status)
     items = items.select_related("category", "color").order_by("received_at")
@@ -845,7 +934,7 @@ def storage_export_csv(request: HttpRequest) -> HttpResponse:
             item.title,
             item.category.localized_name(lang),
             item.color.localized_name(lang),
-            item.received_at.strftime("%d.%m.%Y"),
+            timezone.localtime(item.received_at).strftime("%d.%m.%Y"),
             item.retention_until.strftime("%d.%m.%Y"),
             labels[item.status],
         ])
@@ -967,12 +1056,9 @@ def storage_handover(request: HttpRequest, item_id: int) -> HttpResponse:
         .first()
     )
     claim_report = claim.lost_report if claim else None
-    if claim_report is not None:
-        receiver_name = claim_report.reporter.display_name
-    elif item.found_report:
-        receiver_name = item.found_report.reporter.display_name
-    else:
-        receiver_name = ""
+    # Only a confirmed claim names the receiver. The finder of a found report
+    # is *not* the person picking the item up, so never prefill them.
+    receiver_name = claim_report.reporter.display_name if claim_report else ""
     id_last4 = ""
     note = ""
 
@@ -1032,8 +1118,6 @@ def storage_handover(request: HttpRequest, item_id: int) -> HttpResponse:
     )
     if claim_report is not None:
         reporter_name = claim_report.reporter.display_name
-    elif linked:
-        reporter_name = linked.reporter.display_name
     else:
         reporter_name = ""
 
@@ -1168,6 +1252,25 @@ def reports_found_list(request: HttpRequest) -> HttpResponse:
     """
     lang = _ui_lang(request)
 
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        if action == "mark_handed":
+            report = get_object_or_404(
+                FoundReport, pk=request.POST.get("report_id") or 0
+            )
+            if report.custody != "kept_by_finder" or report.status != "open":
+                messages.info(
+                    request,
+                    _("Only open reports kept by the finder can change custody."),
+                )
+            else:
+                report.custody = "handed_to_office"
+                report.save(update_fields=["custody"])
+                messages.success(request, _("Report marked as handed to the office."))
+        else:
+            messages.error(request, _("Unknown action."))
+        return redirect(request.get_full_path() or "reports_found_list")
+
     status = request.GET.get("status") or "all"
     if status not in ("open", "registered", "returned", "cancelled", "all"):
         status = "all"
@@ -1270,6 +1373,17 @@ def _suggestion_row(suggestion: MatchSuggestion, lang: str, labels: dict) -> dic
         "rejected": _("Rejected"),
     }
     item = suggestion.stored_item
+    found = suggestion.found_report
+    report = suggestion.lost_report
+    can_decide = (
+        suggestion.status == "suggested"
+        and report.status in ("open", "matched")
+        and (item is None or item.status == "in_storage")
+        and (
+            item is not None
+            or (found is not None and found.status in ("open", "registered"))
+        )
+    )
     breakdown = [
         {"label": criteria_pins[key], "points": suggestion.score_breakdown.get(key)}
         for key in ("color", "temporal", "building", "area", "words")
@@ -1279,6 +1393,7 @@ def _suggestion_row(suggestion: MatchSuggestion, lang: str, labels: dict) -> dic
         "suggestion": suggestion,
         "decision_label": decision_labels.get(suggestion.status, suggestion.status),
         "item": item,
+        "can_decide": can_decide,
         "item_status_label": labels.get(item.status, item.status) if item else "",
         "item_category": item.category.localized_name(lang) if item else "",
         "item_color": item.color.localized_name(lang) if item else "",
@@ -1297,7 +1412,7 @@ def _suggestion_rows(report, lang):
     suggestions = list(
         report.match_suggestions.select_related(
             "stored_item__category", "stored_item__color",
-            "stored_item__found_report", "reviewed_by",
+            "stored_item__found_report", "found_report", "reviewed_by",
         )
     )
     suggestions.sort(
@@ -1323,8 +1438,17 @@ def _decide_suggestion(request: HttpRequest, suggestion: MatchSuggestion, action
         # Confirming twice is a no-op; only fresh suggestions confirm.
         messages.info(request, _("This suggestion was already reviewed."))
         return False
-    if outcome == "confirmed":
-        messages.success(request, _("Match confirmed — the handover form is pre-filled."))
+    if outcome == OUTCOME_REPORT_CLOSED:
+        messages.warning(
+            request,
+            _("This report is closed; its matches can no longer be changed."),
+        )
+        return False
+    if outcome in (OUTCOME_ITEM_UNAVAILABLE, OUTCOME_SOURCE_UNAVAILABLE):
+        messages.warning(request, _("This match is no longer available."))
+        return False
+    if outcome == OUTCOME_CONFIRMED:
+        messages.success(request, _("Match confirmed - the handover form is pre-filled."))
         # Tell the lost reporter that the office confirmed the match and,
         # when the finder opted in, how to reach them.
         notify_match_confirmed(suggestion)
@@ -1474,11 +1598,13 @@ def reports_match_review(request: HttpRequest) -> HttpResponse:
     suggestions = MatchSuggestion.objects.select_related(
         "lost_report", "lost_report__reporter",
         "stored_item__category", "stored_item__color",
-        "stored_item__found_report", "reviewed_by",
+        "stored_item__found_report", "found_report", "reviewed_by",
     ).order_by(
         "-lost_report__date_lost", "-lost_report__id", "-score", "-created_at"
     )
-    if decision != "all":
+    if decision == "suggested":
+        suggestions = suggestions.actionable()
+    elif decision != "all":
         suggestions = suggestions.filter(status=decision)
     if date_from:
         suggestions = suggestions.filter(lost_report__date_lost__gte=date_from)
@@ -1545,7 +1671,10 @@ def catalog_location_form(request: HttpRequest, location_id: int | None = None) 
             if location is None:
                 # Row buttons POST the id with action=delete on the list URL.
                 location = get_object_or_404(Location, pk=request.POST.get("location_id") or 0)
-            if LostReport.objects.filter(location=location).exists():
+            if (
+                LostReport.objects.filter(location=location).exists()
+                or FoundReport.objects.filter(location=location).exists()
+            ):
                 messages.error(
                     request, _("This location is referenced by reports and cannot be deleted.")
                 )
@@ -1592,6 +1721,7 @@ def catalog_location_form(request: HttpRequest, location_id: int | None = None) 
         }
         for item in Location.objects.annotate(
             report_count=Count("lost_reports", distinct=True)
+            + Count("found_reports", distinct=True)
         )
     ]
     return render(request, "catalog/location_form.html", {

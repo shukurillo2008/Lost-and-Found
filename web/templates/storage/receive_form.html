@@ -147,7 +147,8 @@
             <div class="d-flex align-items-center gap-2 receive-report-row">
                 <div class="flex-grow-1 receive-report-select" style="min-width: 0;">
                     <select id="inputFoundReport" name="found_report"
-                            aria-describedby="foundReportHint"
+                            aria-describedby="foundReportHint{% if field_errors.inputFoundReport %} foundReportError{% endif %}"
+                            {% if field_errors.inputFoundReport %}aria-invalid="true"{% endif %}
                             data-url-template="{% url 'storage_receive_prefill' 12345 %}"
                             data-search-placeholder="{% trans 'Search reports' %}"
                             data-no-results="{% trans 'Nothing found' %}">
@@ -157,6 +158,9 @@
                                 {% if submitted.found_report == report_pk|stringformat:"s" %}selected{% endif %}>{{ report_label }}</option>
                         {% endfor %}
                     </select>
+                    {% if field_errors.inputFoundReport %}
+                    <div class="invalid-feedback d-block" id="foundReportError">{{ field_errors.inputFoundReport }}</div>
+                    {% endif %}
                 </div>
                 <div class="d-flex gap-2 flex-shrink-0">
                     <button type="button" id="clearReport"
@@ -203,7 +207,8 @@
                                 <label class="form-label" for="inputCategory">
                                     {% trans "Category" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
-                                <select class="form-select" id="inputCategory" name="category" required
+                                <select class="form-select{% if field_errors.inputCategory %} is-invalid{% endif %}" id="inputCategory" name="category" required
+                                        {% if field_errors.inputCategory %}aria-invalid="true"{% endif %}
                                         aria-describedby="categoryError">
                                     <option value="">{% trans "Choose a category." %}</option>
                                     {% for cat_pk, cat_name in category_choices %}
@@ -211,13 +216,14 @@
                                             {% if submitted.category == cat_pk|stringformat:"s" %}selected{% endif %}>{{ cat_name }}</option>
                                     {% endfor %}
                                 </select>
-                                <div class="invalid-feedback" id="categoryError">{% trans "Choose a category." %}</div>
+                                <div class="invalid-feedback" id="categoryError">{% if field_errors.inputCategory %}{{ field_errors.inputCategory }}{% else %}{% trans "Choose a category." %}{% endif %}</div>
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label" for="inputColor">
                                     {% trans "Color" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
-                                <select class="form-select" id="inputColor" name="color" required
+                                <select class="form-select{% if field_errors.inputColor %} is-invalid{% endif %}" id="inputColor" name="color" required
+                                        {% if field_errors.inputColor %}aria-invalid="true"{% endif %}
                                         aria-describedby="colorError">
                                     <option value="">{% trans "Choose a color" %}</option>
                                     {% for clr_pk, clr_name in color_choices %}
@@ -225,28 +231,30 @@
                                             {% if submitted.color == clr_pk|stringformat:"s" %}selected{% endif %}>{{ clr_name }}</option>
                                     {% endfor %}
                                 </select>
-                                <div class="invalid-feedback" id="colorError">{% trans "Choose a color" %}</div>
+                                <div class="invalid-feedback" id="colorError">{% if field_errors.inputColor %}{{ field_errors.inputColor }}{% else %}{% trans "Choose a color" %}{% endif %}</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" for="inputTitle">
                                     {% trans "Title" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
-                                <input type="text" class="form-control" id="inputTitle" name="title"
+                                <input type="text" class="form-control{% if field_errors.inputTitle %} is-invalid{% endif %}" id="inputTitle" name="title"
                                        maxlength="120" required
                                        value="{{ submitted.title|default:'' }}"
                                        data-error-message="{% trans 'Title is required.' %}"
+                                       {% if field_errors.inputTitle %}aria-invalid="true"{% endif %}
                                        aria-describedby="titleError"
                                        autocomplete="off">
-                                <div class="invalid-feedback" id="titleError">{% trans "Title is required." %}</div>
+                                <div class="invalid-feedback" id="titleError">{% if field_errors.inputTitle %}{{ field_errors.inputTitle }}{% else %}{% trans "Title is required." %}{% endif %}</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" for="inputDescription">
                                     {% trans "Description" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
-                                <textarea class="form-control" id="inputDescription" name="description" rows="4" required
+                                <textarea class="form-control{% if field_errors.inputDescription %} is-invalid{% endif %}" id="inputDescription" name="description" rows="4" required
                                           data-error-message="{% trans 'Description is required.' %}"
+                                          {% if field_errors.inputDescription %}aria-invalid="true"{% endif %}
                                           aria-describedby="descriptionError">{{ submitted.description|default:'' }}</textarea>
-                                <div class="invalid-feedback" id="descriptionError">{% trans "Description is required." %}</div>
+                                <div class="invalid-feedback" id="descriptionError">{% if field_errors.inputDescription %}{{ field_errors.inputDescription }}{% else %}{% trans "Description is required." %}{% endif %}</div>
                             </div>
                         </div>
                     </div>
@@ -262,12 +270,12 @@
                                 <label class="form-label" for="inputShelf">
                                     {% trans "Shelf code" %} <span class="text-danger" aria-hidden="true">*</span>
                                 </label>
-                                <!-- BACKEND TODO: set data-shelf-check-url to the shelf-availability endpoint. -->
-                                <input type="text" class="form-control" id="inputShelf" name="shelf_code"
+                                <input type="text" class="form-control{% if field_errors.inputShelf %} is-invalid{% endif %}" id="inputShelf" name="shelf_code"
                                        maxlength="16" required pattern="[A-Z]+\d*-\d{2}"
                                        value="{{ submitted.shelf_code|default:suggested_shelf }}"
-                                       data-shelf-check-url=""
+                                       data-shelf-check-url="{% url 'storage_shelf_check' %}"
                                        data-error-message="{% trans 'Use the format A1-01.' %}"
+                                       {% if field_errors.inputShelf %}aria-invalid="true"{% endif %}
                                        aria-describedby="shelfHint shelfError shelfUsed"
                                        autocomplete="off" spellcheck="false" autocapitalize="characters">
                                 <p class="lnf-hint mb-0 mt-1" id="shelfHint">
@@ -275,18 +283,19 @@
                                     {% trans "The next free code is suggested and can be changed." %}
                                     <span class="d-block">{% trans "Example: A1-01" %}</span>
                                 </p>
-                                <div class="invalid-feedback" id="shelfError">{% trans "Use the format A1-01." %}</div>
+                                <div class="invalid-feedback" id="shelfError">{% if field_errors.inputShelf %}{{ field_errors.inputShelf }}{% else %}{% trans "Use the format A1-01." %}{% endif %}</div>
                                 <div class="text-danger small mt-1 d-none" id="shelfUsed" aria-live="polite">
                                     {% trans "This shelf code is already in use." %}
                                 </div>
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label" for="inputPhoto">{% trans "Photo (JPG/PNG, up to 5 MB)" %}</label>
-                                <input type="file" class="form-control" id="inputPhoto" name="photo"
+                                <input type="file" class="form-control{% if field_errors.inputPhoto %} is-invalid{% endif %}" id="inputPhoto" name="photo"
                                        accept="image/png,image/jpeg" capture="environment"
+                                       {% if field_errors.inputPhoto %}aria-invalid="true"{% endif %}
                                        aria-describedby="photoHint photoError">
                                 <div class="form-text" id="photoHint">{% trans "JPG or PNG, up to 5 MB." %}</div>
-                                <div class="invalid-feedback" id="photoError">{% trans "Photo must be at most 5 MB." %}</div>
+                                <div class="invalid-feedback" id="photoError">{% if field_errors.inputPhoto %}{{ field_errors.inputPhoto }}{% else %}{% trans "Photo must be at most 5 MB." %}{% endif %}</div>
                                 <div class="mt-2 d-none" id="photoPreviewWrap">
                                     <img id="photoPreview" class="receive-photo-preview" alt="">
                                 </div>

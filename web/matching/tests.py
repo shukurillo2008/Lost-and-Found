@@ -14,6 +14,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from bot_app.models import TelegramUser
@@ -30,12 +31,17 @@ from matching.engine import (
 from matching.models import MatchSuggestion
 from matching.services import (
     OUTCOME_CONFIRMED,
+    OUTCOME_ITEM_UNAVAILABLE,
     OUTCOME_NOOP,
     OUTCOME_REJECTED,
+    OUTCOME_REPORT_CLOSED,
+    OUTCOME_SOURCE_UNAVAILABLE,
     apply_decision,
+    suggestion_sources,
 )
 from reports.models import FoundReport, LostReport
 from storage.models import StoredItem
+from storage.retention import close_expired_lost_reports
 
 
 def day(delta: int):
@@ -321,3 +327,281 @@ class SharedDecisionServiceTests(MatchingTestBase):
         suggestion = self.make_suggestion(lost, self.make_stored())
         apply_decision(suggestion, "reject", reviewer=self.staff)
         self.assertEqual(apply_decision(suggestion, "reject"), OUTCOME_NOOP)
+
+    def test_confirming_a_second_match_auto_rejects_the_first(self):
+        lost = self.make_lost()
+        first = self.make_suggestion(lost, self.make_stored(title="first item"))
+        second = self.make_suggestion(lost, self.make_stored(title="second item"))
+        self.assertEqual(
+            apply_decision(first, "confirm", reviewer=self.staff), OUTCOME_CONFIRMED
+        )
+        self.assertEqual(
+            apply_decision(second, "confirm", reviewer=self.staff), OUTCOME_CONFIRMED
+        )
+        first.refresh_from_db()
+        second.refresh_from_db()
+        lost.refresh_from_db()
+        self.assertEqual(first.status, "rejected")
+        self.assertEqual(second.status, "confirmed")
+        self.assertEqual(lost.status, "matched")
+
+    def test_closed_report_blocks_any_decision(self):
+        for status in ("returned", "cancelled", "expired"):
+            with self.subTest(status=status):
+                lost = self.make_lost()
+                LostReport.objects.filter(pk=lost.pk).update(status=status)
+                lost.refresh_from_db()
+                suggestion = self.make_suggestion(
+                    lost, self.make_stored(title=f"{status} item")
+                )
+                self.assertEqual(
+                    apply_decision(suggestion, "confirm", reviewer=self.staff),
+                    OUTCOME_REPORT_CLOSED,
+                )
+                self.assertEqual(
+                    apply_decision(suggestion, "reject", reviewer=self.staff),
+                    OUTCOME_REPORT_CLOSED,
+                )
+                suggestion.refresh_from_db()
+                self.assertEqual(suggestion.status, "suggested")
+
+    def test_confirm_refuses_an_item_no_longer_in_storage(self):
+        lost = self.make_lost()
+        item = self.make_stored()
+        suggestion = self.make_suggestion(lost, item)
+        StoredItem.objects.filter(pk=item.pk).update(status="returned")
+        suggestion = MatchSuggestion.objects.get(pk=suggestion.pk)
+        self.assertEqual(
+            apply_decision(suggestion, "confirm", reviewer=self.staff),
+            OUTCOME_ITEM_UNAVAILABLE,
+        )
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.status, "suggested")
+
+    def test_confirm_refuses_a_closed_found_report_source(self):
+        lost = self.make_lost()
+        found = self.make_found(location=self.loc_sport)
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=None, found_report=found,
+                created_by="system", score=8, score_breakdown={"color": 3},
+            )
+        FoundReport.objects.filter(pk=found.pk).update(status="cancelled")
+        suggestion = MatchSuggestion.objects.get(pk=suggestion.pk)
+        self.assertEqual(
+            apply_decision(suggestion, "confirm", reviewer=self.staff),
+            OUTCOME_SOURCE_UNAVAILABLE,
+        )
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.status, "suggested")
+
+    def test_two_confirmed_rows_are_blocked_at_the_database_level(self):
+        lost = self.make_lost()
+        first = self.make_suggestion(lost, self.make_stored(title="first item"))
+        second = self.make_suggestion(lost, self.make_stored(title="second item"))
+        with disabled():
+            MatchSuggestion.objects.filter(pk=first.pk).update(status="confirmed")
+            with self.assertRaises(IntegrityError):
+                with transaction.atomic():
+                    MatchSuggestion.objects.filter(pk=second.pk).update(
+                        status="confirmed"
+                    )
+
+
+class FoundSourceDecisionTests(MatchingTestBase):
+    """A suggestion that only points at a found report must resolve the
+    physical item when the finder already handed it in, so the handover can
+    find the confirmed claim."""
+
+    def make_found_suggestion(self, lost, found):
+        with disabled():
+            return MatchSuggestion.objects.create(
+                lost_report=lost, found_report=found, created_by="user",
+                score=5, score_breakdown={"source": "user_button"},
+            )
+
+    def registered_found(self):
+        found = self.make_found(location=self.loc_sport)
+        FoundReport.objects.filter(pk=found.pk).update(status="registered")
+        return found
+
+    def test_confirm_attaches_the_registered_item(self):
+        lost = self.make_lost()
+        found = self.registered_found()
+        item = self.make_stored(found=found)
+        suggestion = self.make_found_suggestion(lost, found)
+
+        self.assertEqual(
+            apply_decision(suggestion, "confirm", reviewer=self.staff),
+            OUTCOME_CONFIRMED,
+        )
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.stored_item_id, item.pk)
+        self.assertEqual(suggestion.found_report_id, found.pk)
+
+    def test_confirm_refuses_when_the_linked_item_left_storage(self):
+        lost = self.make_lost()
+        found = self.registered_found()
+        item = self.make_stored(found=found)
+        StoredItem.objects.filter(pk=item.pk).update(status="returned")
+
+        suggestion = self.make_found_suggestion(lost, found)
+        self.assertEqual(
+            apply_decision(suggestion, "confirm", reviewer=self.staff),
+            OUTCOME_ITEM_UNAVAILABLE,
+        )
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.status, "suggested")
+        self.assertIsNone(suggestion.stored_item_id)
+
+    def test_confirm_merges_a_duplicate_item_pair_suggestion(self):
+        lost = self.make_lost()
+        found = self.registered_found()
+        item = self.make_stored(found=found)
+        with disabled():
+            duplicate = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=item, created_by="system",
+                score=9, score_breakdown={"color": 3},
+            )
+        suggestion = self.make_found_suggestion(lost, found)
+
+        self.assertEqual(
+            apply_decision(suggestion, "confirm", reviewer=self.staff),
+            OUTCOME_CONFIRMED,
+        )
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.stored_item_id, item.pk)
+        self.assertFalse(MatchSuggestion.objects.filter(pk=duplicate.pk).exists())
+
+
+class SuggestionSourceTests(MatchingTestBase):
+    """The worker dedupes on both the stored item and its found report."""
+
+    def test_found_report_ids_are_reported(self):
+        lost = self.make_lost()
+        found = self.make_found(location=self.loc_sport)
+        self.make_stored(found=found)
+        with disabled():
+            MatchSuggestion.objects.create(
+                lost_report=lost, found_report=found, created_by="user", score=5,
+            )
+        item_ids, found_ids = suggestion_sources(lost)
+        self.assertEqual(item_ids, set())
+        self.assertEqual(found_ids, {found.pk})
+
+    def test_relinked_rows_report_both_ids(self):
+        lost = self.make_lost()
+        found = self.make_found(location=self.loc_sport)
+        item = self.make_stored(found=found)
+        with disabled():
+            MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=item, found_report=found,
+                created_by="user", score=5,
+            )
+        item_ids, found_ids = suggestion_sources(lost)
+        self.assertEqual(item_ids, {item.pk})
+        self.assertEqual(found_ids, {found.pk})
+
+
+class ExpiredReportSuggestionTests(MatchingTestBase):
+    def test_expiring_a_report_rejects_its_pending_suggestions(self):
+        lost = self.make_lost(days_ago=120)
+        item = self.make_stored()
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=item, created_by="system", score=9,
+            )
+
+        expired, closed = close_expired_lost_reports()
+
+        self.assertEqual([report.pk for report in expired], [lost.pk])
+        self.assertEqual(closed, 1)
+        lost.refresh_from_db()
+        suggestion.refresh_from_db()
+        self.assertEqual(lost.status, "expired")
+        self.assertEqual(suggestion.status, "rejected")
+        self.assertIsNotNone(suggestion.reviewed_at)
+
+    def test_recent_reports_are_untouched(self):
+        lost = self.make_lost(days_ago=3)
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=self.make_stored(),
+                created_by="system", score=9,
+            )
+        expired, closed = close_expired_lost_reports()
+        self.assertEqual(expired, [])
+        self.assertEqual(closed, 0)
+        lost.refresh_from_db()
+        suggestion.refresh_from_db()
+        self.assertEqual(lost.status, "open")
+        self.assertEqual(suggestion.status, "suggested")
+
+
+class ActionableSuggestionsTests(MatchingTestBase):
+    """``MatchSuggestion.objects.actionable()`` gates the dashboard, digest and
+    review queue, so closed work never shows up as pending."""
+
+    def make_suggestion(self, lost, stored=None, found=None):
+        with disabled():
+            return MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=stored, found_report=found,
+                created_by="system", score=9, score_breakdown={"color": 3},
+            )
+
+    def test_open_report_with_stored_item_is_actionable(self):
+        self.make_suggestion(self.make_lost(), stored=self.make_stored())
+        self.assertEqual(MatchSuggestion.objects.actionable().count(), 1)
+
+    def test_closed_report_is_not_actionable(self):
+        lost = self.make_lost()
+        self.make_suggestion(lost, stored=self.make_stored())
+        LostReport.objects.filter(pk=lost.pk).update(status="returned")
+        self.assertEqual(MatchSuggestion.objects.actionable().count(), 0)
+
+    def test_disposed_item_is_not_actionable(self):
+        item = self.make_stored()
+        self.make_suggestion(self.make_lost(), stored=item)
+        StoredItem.objects.filter(pk=item.pk).update(status="disposed")
+        self.assertEqual(MatchSuggestion.objects.actionable().count(), 0)
+
+    def test_found_report_source_stays_actionable_while_registered(self):
+        found = self.make_found(location=self.loc_sport)
+        FoundReport.objects.filter(pk=found.pk).update(status="registered")
+        self.make_suggestion(self.make_lost(), found=found)
+        self.assertEqual(MatchSuggestion.objects.actionable().count(), 1)
+        FoundReport.objects.filter(pk=found.pk).update(status="returned")
+        self.assertEqual(MatchSuggestion.objects.actionable().count(), 0)
+
+
+class MatchReviewTemplateTests(MatchingTestBase):
+    """The review queue hides the Confirm/Reject buttons once a decision can
+    no longer be applied, so rare states do not offer a dead action."""
+
+    def make_suggestion(self, lost, stored):
+        with disabled():
+            return MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=stored, created_by="system",
+                score=9, score_breakdown={"color": 3},
+            )
+
+    def test_actionable_suggestion_shows_decision_buttons(self):
+        self.make_suggestion(self.make_lost(), self.make_stored())
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("reports_match_review"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="confirm"')
+
+    def test_closed_report_hides_decision_buttons(self):
+        lost = self.make_lost()
+        self.make_suggestion(lost, self.make_stored())
+        LostReport.objects.filter(pk=lost.pk).update(status="cancelled")
+        self.client.force_login(self.staff)
+        response = self.client.get(
+            reverse("reports_match_review"), {"status": "all"}
+        )
+        self.assertEqual(response.status_code, 200)
+        rows = [row for group in response.context["groups"] for row in group["rows"]]
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["can_decide"])
+        self.assertNotContains(response, 'value="confirm"')

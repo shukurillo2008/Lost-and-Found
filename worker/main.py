@@ -41,10 +41,12 @@ from bot_app.digest import digest_hour, send_daily_digest  # noqa: E402
 from bot_app.notifications import notify_expired, notify_suggestion  # noqa: E402
 from matching.engine import score_breakdown, score_from_breakdown, strong_enough  # noqa: E402
 from matching.models import MatchSuggestion  # noqa: E402
+from matching.services import suggestion_sources  # noqa: E402
 from reports.models import LostReport  # noqa: E402
 from storage.models import StoredItem  # noqa: E402
 from storage.retention import (  # noqa: E402
     EXPIRING_WINDOW_DAYS,
+    close_expired_lost_reports,
     expired_lost_reports,
     retention_summary,
 )
@@ -77,19 +79,19 @@ def run_retention_cycle() -> dict:
 def run_expiry_cycle() -> dict:
     """Close open lost reports older than 90 days and notify the reporter.
 
-    The status flip is a queryset update (skips the auto-translate save
-    hook). ``reopened_at`` is untouched here; the bot writes it when the
-    reporter reopens the report, which restarts the 90-day clock.
+    Their pending match suggestions are rejected in the same pass: a
+    decision on a closed report is refused by ``apply_decision``, so leaving
+    the rows ``suggested`` would only keep them in the review queue forever.
     """
-    stats = {"expired": 0, "expired_notified": 0}
-    for report in expired_lost_reports().select_related("reporter"):
-        updated = LostReport.objects.filter(pk=report.pk, status="open").update(
-            status="expired"
-        )
-        if not updated:
-            continue
-        report.status = "expired"
-        stats["expired"] += 1
+    expired_reports, suggestions_closed = close_expired_lost_reports(
+        expired_lost_reports().select_related("reporter")
+    )
+    stats = {
+        "expired": len(expired_reports),
+        "expired_notified": 0,
+        "suggestions_closed": suggestions_closed,
+    }
+    for report in expired_reports:
         if notify_expired(report):
             stats["expired_notified"] += 1
         logger.info("expired lost report #%s (%s)", report.pk, report.title)
@@ -113,11 +115,14 @@ def run_matching_cycle() -> dict:
     )
     stats = {"scored": 0, "suggestions": 0, "notified": 0}
     for lost in open_reports:
-        existing_ids = set(
-            lost.match_suggestions.values_list("stored_item_id", flat=True)
-        )
+        existing_items, existing_found = suggestion_sources(lost)
         for item in items:
-            if item.pk in existing_ids:
+            if item.pk in existing_items:
+                continue
+            # The same physical pair may already be covered by a suggestion
+            # that points at its found report (created from the bot before
+            # the item was received and relinked afterwards).
+            if item.found_report_id and item.found_report_id in existing_found:
                 continue
             stats["scored"] += 1
             breakdown = score_breakdown(lost, item)

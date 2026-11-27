@@ -38,6 +38,34 @@ DEFAULT_DIGEST_HOUR = 9
 DEFAULT_RETRY_MINUTES = 10
 MAX_ATTEMPTS = 5
 MAX_LISTED = 10
+MAX_MESSAGE_CHARS = 4096  # Telegram's per-message limit
+
+
+def _utf16_length(text: str) -> int:
+    """Telegram counts message length in UTF-16 code units, not code points."""
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _append_list_section(lines, header, item_lines, total) -> None:
+    """Append one item list without exceeding Telegram's message limit.
+
+    ``item_lines`` are complete HTML fragments, so clipping at line
+    boundaries never splits a tag. When the cap (or ``MAX_LISTED``) hides
+    items, a trailing "… yana N ta" note keeps the count honest.
+    """
+    kept = []
+    for line in item_lines:
+        candidate = lines + ["", header] + kept + [line]
+        hidden = total - (len(kept) + 1)
+        reserve = _utf16_length(f"… yana {hidden} ta") + 1 if hidden > 0 else 0
+        if _utf16_length("\n".join(candidate)) + reserve > MAX_MESSAGE_CHARS:
+            break
+        kept.append(line)
+    if not kept:
+        return
+    lines += ["", header, *kept]
+    if len(kept) < total:
+        lines.append(f"… yana {total - len(kept)} ta")
 
 
 def digest_hour() -> int:
@@ -106,7 +134,7 @@ def build_digest(now=None) -> tuple[str, dict]:
         "expiring": expiring_count,
         "ready_for_disposal": ready_count,
         "open_reports": LostReport.objects.filter(status="open").count(),
-        "pending_matches": MatchSuggestion.objects.filter(status="suggested").count(),
+        "pending_matches": MatchSuggestion.objects.actionable().count(),
         "received_today": StoredItem.objects.filter(received_at__date=today).count(),
         "returned_today": Handover.objects.filter(handed_at__date=today).count(),
         "disposed_today": ItemStatusLog.objects.filter(
@@ -129,16 +157,20 @@ def build_digest(now=None) -> tuple[str, dict]:
     ]
 
     if expiring:
-        lines += ["", "⏳ <b>Muddati yaqin:</b>"]
-        lines += [_item_line(item) for item in expiring]
-        if expiring_count > len(expiring):
-            lines.append(f"… yana {expiring_count - len(expiring)} ta")
+        _append_list_section(
+            lines,
+            "⏳ <b>Muddati yaqin:</b>",
+            [_item_line(item) for item in expiring],
+            expiring_count,
+        )
 
     if ready:
-        lines += ["", "🗑 <b>Utilizatsiyaga tayyor:</b>"]
-        lines += [_item_line(item) for item in ready]
-        if ready_count > len(ready):
-            lines.append(f"… yana {ready_count - len(ready)} ta")
+        _append_list_section(
+            lines,
+            "🗑 <b>Utilizatsiyaga tayyor:</b>",
+            [_item_line(item) for item in ready],
+            ready_count,
+        )
 
     return "\n".join(lines), counts
 

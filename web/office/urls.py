@@ -16,6 +16,7 @@ urlpatterns = [
     path("storage/", views.storage_item_list, name="storage_item_list"),
     path("storage/receive/", views.storage_receive, name="storage_receive"),
     path("storage/receive/prefill/<int:report_id>/", views.storage_receive_prefill, name="storage_receive_prefill"),
+    path("storage/shelf-check/", views.storage_shelf_check, name="storage_shelf_check"),
     path("storage/export/", views.storage_export_csv, name="storage_export_csv"),
     path("storage/items/<int:item_id>/", views.storage_item_detail, name="storage_item_detail"),
     path("storage/items/<int:item_id>/handover/", views.storage_handover, name="storage_handover"),

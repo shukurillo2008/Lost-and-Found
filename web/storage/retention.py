@@ -67,3 +67,32 @@ def expired_lost_reports(queryset=None):
         Q(date_lost__lt=cutoff)
         & (Q(reopened_at__isnull=True) | Q(reopened_at__date__lt=cutoff))
     )
+
+
+def close_expired_lost_reports(queryset=None) -> tuple[list, int]:
+    """Expire overdue reports and reject their pending match suggestions.
+
+    Returns ``(expired_reports, suggestions_closed)``. Reporter
+    notifications are left to the caller so this module stays free of
+    Telegram imports. Rejecting the suggestions is a bookkeeping step: a
+    decision on a closed report is refused anyway, but leaving rows
+    ``suggested`` would keep them in the review queue forever.
+    """
+    from matching.models import MatchSuggestion
+
+    reports = queryset if queryset is not None else expired_lost_reports()
+    now = timezone.now()
+    expired = []
+    closed = 0
+    for report in reports:
+        updated = LostReport.objects.filter(pk=report.pk, status="open").update(
+            status="expired"
+        )
+        if not updated:
+            continue
+        report.status = "expired"
+        expired.append(report)
+        closed += MatchSuggestion.objects.filter(
+            lost_report=report, status="suggested"
+        ).update(status="rejected", reviewed_at=now)
+    return expired, closed

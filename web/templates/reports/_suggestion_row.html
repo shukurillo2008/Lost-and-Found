@@ -46,7 +46,7 @@
         </div>
         {% endif %}
 
-        {% if s.suggestion.status == "suggested" %}
+        {% if s.can_decide %}
         <div class="match-card-actions">
             <form method="post" action="{{ action_url }}">
                 {% csrf_token %}
@@ -89,6 +89,11 @@
         {% trans "Answered by the reporter via Telegram" %}
         {% endif %}
         · {{ s.suggestion.reviewed_at|date:"d.m.Y H:i" }}
+    </div>
+    {% elif s.suggestion.status == "suggested" and not s.can_decide %}
+    <div class="match-card-footer lnf-hint">
+        <i class="ti ti-info-circle" aria-hidden="true"></i>
+        {% trans "This suggestion can no longer be decided." %}
     </div>
     {% endif %}
 </div>

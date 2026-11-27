@@ -862,4 +862,32 @@ msgstr "Quyidagilarni to‘g‘rilang:"
 msgid "Please fill in this field."
 msgstr "Bu maydonni to‘ldiring."
 
+msgid "That found report does not exist."
+msgstr "Bunday topilma arizasi mavjud emas."
+
+msgid "Only reports handed to the office can be linked."
+msgstr "Faqat ofisga topshirilgan arizalarni bog‘lash mumkin."
+
+msgid "Only open found reports can be linked."
+msgstr "Faqat ochiq topilma arizalarini bog‘lash mumkin."
+
+msgid "This suggestion can no longer be decided."
+msgstr "Bu taklif bo‘yicha endi qaror qabul qilib bo‘lmaydi."
+
+msgid "This report is closed; its matches can no longer be changed."
+msgstr "Bu ariza yopilgan; mosliklarini endi o‘zgartirib bo‘lmaydi."
+
+msgid "This match is no longer available."
+msgstr "Bu moslik endi mavjud emas."
+
+msgid "Mark as handed to office"
+msgstr "Ofisga topshirilgan deb belgilash"
+
+msgid "Report marked as handed to the office."
+msgstr "Ariza ofisga topshirilgan deb belgilandi."
+
+msgid "Only open reports kept by the finder can change custody."
+msgstr "Faqat topuvchida qolgan ochiq arizalarning saqlash holatini o‘zgartirish mumkin."
+
+
 

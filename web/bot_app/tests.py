@@ -131,6 +131,29 @@ class DigestTextTests(DigestTestBase):
         self.assertIn("&lt;b&gt;bold&lt;/b&gt;", text)
         self.assertNotIn("umbrella <b>bold</b>", text)
 
+    @patch("bot_app.digest.MAX_LISTED", 200)
+    def test_long_digest_is_capped_at_the_telegram_limit(self):
+        today = timezone.localdate()
+        long_title = ("very long umbrella title " * 6)[:120]
+        for index in range(120):
+            item = StoredItem.objects.create(
+                category=self.category, color=self.color, title=long_title,
+                description="x", shelf_code=f"CAP-{index:03d}",
+                received_by=self.staff,
+            )
+            StoredItem.objects.filter(pk=item.pk).update(
+                retention_until=today + timedelta(days=2)
+            )
+
+        text, counts = build_digest()
+
+        self.assertGreater(counts["expiring"], 120)
+        self.assertLessEqual(len(text.encode("utf-16-le")) // 2, 4096)
+        self.assertIn("… yana", text)
+        self.assertRegex(text, r"… yana \d+ ta")
+        # Every kept item line is a whole HTML fragment.
+        self.assertIn("<code>CAP-", text)
+
     @patch.dict(os.environ, {"WORKER_DIGEST_HOUR": "9"})
     def test_digest_hour_env_is_clamped(self):
         self.assertEqual(digest_hour(), 9)

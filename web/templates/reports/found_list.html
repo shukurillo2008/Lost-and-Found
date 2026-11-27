@@ -113,6 +113,17 @@
                     <td>{{ row.report.reporter.display_name }}</td>
                     <td>
                         <span class="badge text-bg-light border">{{ row.custody_label }}</span>
+                        {% if row.report.custody == "kept_by_finder" and row.report.status == "open" %}
+                        <form method="post" action="{% url 'reports_found_list' %}" class="mt-1">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="mark_handed">
+                            <input type="hidden" name="report_id" value="{{ row.report.pk }}">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="ti ti-check" aria-hidden="true"></i>
+                                {% trans "Mark as handed to office" %}
+                            </button>
+                        </form>
+                        {% endif %}
                     </td>
                     <td>
                         {% if row.report.finder_contact_allowed %}

@@ -7,12 +7,18 @@ row written), and the handover act closing item, linked found report and
 the confirmed lost claim atomically.
 """
 import csv
-from datetime import timedelta
+import shutil
+import tempfile
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from bot_app.models import TelegramUser
 from catalog.models import Category, Color, Location
@@ -183,11 +189,11 @@ class HandoverFlowTests(StorageTestBase):
         response = self.client.get(self.handover_url(kit["stored"]))
         self.assertEqual(response.context["receiver_name"], "Claim Owner")
 
-    def test_receiver_prefilled_from_linked_report_without_claim(self):
+    def test_receiver_not_prefilled_from_the_finder(self):
         found = self.make_found()
         stored = self.make_stored(found=found)
         response = self.client.get(self.handover_url(stored))
-        self.assertEqual(response.context["receiver_name"], "Finder Owner")
+        self.assertEqual(response.context["receiver_name"], "")
 
     def test_handover_closes_item_found_report_and_confirmed_claim(self):
         kit = self.kit(lost_status="open", found_status="registered")
@@ -303,6 +309,15 @@ class StorageCsvExportTests(StorageTestBase):
         previous_rows = self.export(month=previous.strftime("%Y-%m"))
         self.assertIn("SRT-01", self.shelves(previous_rows))
 
+    def test_received_date_and_month_follow_local_time(self):
+        # 20:00 UTC on 31 May is 01:00 on 1 June in Asia/Tashkent.
+        received = datetime(2026, 5, 31, 20, 0, tzinfo=dt_timezone.utc)
+        StoredItem.objects.filter(pk=self.in_storage.pk).update(received_at=received)
+        rows = self.export(month="2026-06")
+        self.assertEqual(self.shelves(rows), ["SRT-01"])
+        self.assertEqual(rows[0]["Received date"], "01.06.2026")
+        self.assertEqual(self.export(month="2026-05"), [])
+
     def test_list_page_export_link_carries_the_active_status(self):
         response = self.client.get(reverse("storage_item_list"), {"status": "returned"})
         self.assertEqual(response.context["export_url"], "/storage/export/?status=returned")
@@ -316,3 +331,215 @@ class StorageCsvExportTests(StorageTestBase):
         plain = Client()
         plain.force_login(self.plain_user)
         self.assertEqual(plain.get(reverse("storage_export_csv")).status_code, 403)
+
+class ReceiveFormTests(StorageTestBase):
+    def setUp(self):
+        self.client.force_login(self.staff)
+        self.url = reverse("storage_receive")
+
+    def payload(self, **overrides):
+        data = {
+            "title": "black power bank",
+            "description": "20000 mah charger",
+            "shelf_code": "ZZ-10",
+            "category": str(self.cat_long.pk),
+            "color": str(self.color.pk),
+        }
+        data.update(overrides)
+        return data
+
+    def test_normal_save_creates_item_and_redirects_to_detail(self):
+        response = self.client.post(self.url, self.payload())
+        item = StoredItem.objects.get(shelf_code="ZZ-10")
+        self.assertRedirects(response, reverse("storage_item_detail", args=[item.pk]))
+        self.assertEqual(item.status, "in_storage")
+        self.assertEqual(item.status_logs.count(), 1)
+
+    def test_save_and_add_redirects_back_to_the_form(self):
+        response = self.client.post(self.url, self.payload(save_and_add="1"))
+        self.assertRedirects(response, self.url)
+        self.assertTrue(StoredItem.objects.filter(shelf_code="ZZ-10").exists())
+
+    def test_invalid_shelf_format_is_a_field_error(self):
+        response = self.client.post(self.url, self.payload(shelf_code="bad"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["field_errors"]["inputShelf"],
+            _("Use the format A1-01."),
+        )
+        self.assertFalse(StoredItem.objects.filter(shelf_code="BAD").exists())
+
+    def test_kept_by_finder_report_cannot_be_linked(self):
+        found = self.make_found(status="open")
+        FoundReport.objects.filter(pk=found.pk).update(custody="kept_by_finder")
+        response = self.client.post(self.url, self.payload(found_report=str(found.pk)))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("inputFoundReport", response.context["field_errors"])
+        self.assertFalse(StoredItem.objects.filter(shelf_code="ZZ-10").exists())
+
+    def test_closed_found_report_cannot_be_linked(self):
+        found = self.make_found(status="registered")  # handed_to_office, not open
+        response = self.client.post(self.url, self.payload(found_report=str(found.pk)))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("inputFoundReport", response.context["field_errors"])
+        self.assertFalse(StoredItem.objects.filter(shelf_code="ZZ-10").exists())
+
+    def test_already_linked_found_report_is_rejected(self):
+        found = self.make_found(status="open")
+        self.make_stored(found=found, shelf_code="ZZ-09")
+        response = self.client.post(self.url, self.payload(found_report=str(found.pk)))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("inputFoundReport", response.context["field_errors"])
+        self.assertFalse(StoredItem.objects.filter(shelf_code="ZZ-10").exists())
+
+    def test_photo_mime_is_validated(self):
+        upload = SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain")
+        response = self.client.post(self.url, self.payload(photo=upload))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("inputPhoto", response.context["field_errors"])
+        self.assertFalse(StoredItem.objects.filter(shelf_code="ZZ-10").exists())
+
+    def test_use_report_photo_copies_the_report_photo(self):
+        media_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media_root, True)
+        found = self.make_found(status="open")
+        FoundReport.objects.filter(pk=found.pk).update(photo_file_id="telegram-file-id")
+        with patch("office.views._fetch_telegram_file", return_value=b"\x89PNG\r\n\x1a\n"):
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.post(
+                    self.url,
+                    self.payload(found_report=str(found.pk), use_report_photo="1"),
+                )
+        item = StoredItem.objects.get(shelf_code="ZZ-10")
+        self.assertRedirects(response, reverse("storage_item_detail", args=[item.pk]))
+        self.assertTrue(item.photo.name.endswith(f"from-report-{found.pk}.jpg"))
+        self.assertEqual(item.found_report_id, found.pk)
+
+    def test_boshqalar_is_last_in_category_choices(self):
+        Category.objects.create(name_uz="Boshqalar", emoji="x", retention_days=30)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["category_choices"][-1][1], "Boshqalar")
+
+    def test_receiving_a_kept_report_relinks_the_confirmed_match(self):
+        found = self.make_found(status="open")
+        FoundReport.objects.filter(pk=found.pk).update(custody="kept_by_finder")
+        lost = self.make_lost()
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, found_report=found, created_by="system",
+                score=9, status="confirmed",
+                reviewed_by=self.staff, reviewed_at=timezone.now(),
+            )
+        # The finder brings the item in: the office marks the report handed
+        # over and then registers the physical item against it.
+        self.client.post(
+            reverse("reports_found_list"),
+            {"action": "mark_handed", "report_id": found.pk},
+        )
+        response = self.client.post(
+            self.url,
+            self.payload(found_report=str(found.pk), shelf_code="ZZ-11"),
+        )
+        item = StoredItem.objects.get(shelf_code="ZZ-11")
+        self.assertRedirects(response, reverse("storage_item_detail", args=[item.pk]))
+        suggestion.refresh_from_db()
+        found.refresh_from_db()
+        self.assertEqual(suggestion.stored_item_id, item.pk)
+        self.assertEqual(found.status, "registered")
+
+    def test_receiving_a_kept_report_relinks_pending_suggestions_too(self):
+        found = self.make_found(status="open")
+        FoundReport.objects.filter(pk=found.pk).update(custody="kept_by_finder")
+        lost = self.make_lost()
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, found_report=found, created_by="user", score=5,
+            )
+        self.client.post(
+            reverse("reports_found_list"),
+            {"action": "mark_handed", "report_id": found.pk},
+        )
+        response = self.client.post(
+            self.url,
+            self.payload(found_report=str(found.pk), shelf_code="ZZ-12"),
+        )
+        item = StoredItem.objects.get(shelf_code="ZZ-12")
+        self.assertRedirects(response, reverse("storage_item_detail", args=[item.pk]))
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.stored_item_id, item.pk)
+        self.assertEqual(suggestion.status, "suggested")
+
+    def test_deleting_item_drops_item_only_suggestions(self):
+        item = self.make_stored(shelf_code="DEL-01")
+        lost = self.make_lost()
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=item, created_by="system", score=9,
+            )
+        item.delete()
+        self.assertFalse(MatchSuggestion.objects.filter(pk=suggestion.pk).exists())
+
+    def test_deleting_item_reopens_a_report_that_lost_its_confirmed_match(self):
+        item = self.make_stored(shelf_code="DEL-02")
+        lost = self.make_lost(status="matched")
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=item, created_by="system", score=9,
+                status="confirmed", reviewed_by=self.staff,
+                reviewed_at=timezone.now(),
+            )
+        item.delete()
+        self.assertFalse(MatchSuggestion.objects.filter(pk=suggestion.pk).exists())
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, "open")
+
+    def test_deleting_item_keeps_a_found_report_suggestion(self):
+        found = self.make_found()
+        item = self.make_stored(found=found, shelf_code="DEL-03")
+        lost = self.make_lost()
+        with disabled():
+            suggestion = MatchSuggestion.objects.create(
+                lost_report=lost, stored_item=item, found_report=found,
+                created_by="system", score=9,
+            )
+        item.delete()
+        suggestion.refresh_from_db()
+        self.assertIsNone(suggestion.stored_item_id)
+        self.assertEqual(suggestion.found_report_id, found.pk)
+
+
+class StorageShelfCheckTests(StorageTestBase):
+    def setUp(self):
+        self.client.force_login(self.staff)
+        self.url = reverse("storage_shelf_check")
+
+    def test_requires_staff(self):
+        anonymous = Client().get(self.url)
+        self.assertEqual(anonymous.status_code, 302)
+        self.assertIn("/accounts/login/", anonymous["Location"])
+
+        plain = Client()
+        plain.force_login(self.plain_user)
+        self.assertEqual(plain.get(self.url).status_code, 403)
+
+    def test_existing_in_storage_code_is_unavailable(self):
+        self.make_stored(shelf_code="ZZ-99")
+        response = self.client.get(self.url, {"code": "zz-99"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"code": "ZZ-99", "exists": True, "available": False},
+        )
+
+    def test_free_code_is_available(self):
+        response = self.client.get(self.url, {"code": "ZZ-98"})
+        self.assertEqual(
+            response.json(),
+            {"code": "ZZ-98", "exists": False, "available": True},
+        )
+
+    def test_returned_item_code_is_available(self):
+        self.make_stored(shelf_code="ZZ-97", status="returned")
+        response = self.client.get(self.url, {"code": "ZZ-97"})
+        self.assertFalse(response.json()["exists"])

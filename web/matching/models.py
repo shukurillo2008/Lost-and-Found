@@ -16,6 +16,23 @@ class MatchSuggestionQuerySet(models.QuerySet):
     def pending(self):
         return self.filter(status="suggested")
 
+    def actionable(self):
+        """Pending suggestions whose lost report and item are still usable.
+
+        Used by the dashboard, digest and review queue so closed reports or
+        unavailable items never inflate the pending-work counters.
+        """
+        return self.filter(status="suggested").filter(
+            models.Q(lost_report__status__in=("open", "matched"))
+            & (
+                models.Q(stored_item__status="in_storage")
+                | models.Q(
+                    stored_item__isnull=True,
+                    found_report__status__in=("open", "registered"),
+                )
+            )
+        )
+
 
 class HandoverQuerySet(models.QuerySet):
     def with_common_related(self):
@@ -73,6 +90,11 @@ class MatchSuggestion(models.Model):
             models.CheckConstraint(
                 condition=models.Q(stored_item__isnull=False) | models.Q(found_report__isnull=False),
                 name="suggestion_needs_a_source",
+            ),
+            models.UniqueConstraint(
+                fields=["lost_report"],
+                condition=models.Q(status="confirmed"),
+                name="unique_confirmed_suggestion_per_report",
             ),
         ]
 

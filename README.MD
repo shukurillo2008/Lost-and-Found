@@ -77,7 +77,7 @@ The Telegram bot handle is the one assigned to the configured `BOT_TOKEN`. If yo
 - Return (handover), dispose and transfer actions; dispose and transfer require a note, and every transition is written to the audit log.
 - Confidential handover act: receiver name and **last four digits** of the student/staff ID.
 - Lost-report list and detail with search, category, location, status and date-range filters.
-- Found-report table with search, status, custody, category and date-range filters; reporter, contact-consent and linked-storage-item columns.
+- Found-report table with search, status, custody, category and date-range filters; reporter, contact-consent and linked-storage-item columns, plus a "mark as handed to office" action for reports the finder kept.
 - Match review queue grouped by lost report, with confirm/reject decisions and score breakdowns.
 - Reference-data management for locations, categories and colours, with delete guards and automatic translation of blank fields.
 - Monthly inventory CSV export that follows the active status filter.
@@ -330,12 +330,14 @@ All office pages require an authenticated **staff** user. Anonymous visitors are
 
 1. A finder submits a found report in the bot, or brings an item directly to the office.
 2. Staff open **Receive item**, optionally link an open found report to prefill the text, choose a category/colour, add a photo and confirm the suggested shelf code.
-3. Saving creates the `StoredItem`, computes `retention_until` from the category's retention policy and writes the first status-log row. A linked found report becomes `registered`.
+3. Saving creates the `StoredItem`, computes `retention_until` from the category's retention policy and writes the first status-log row. A linked found report becomes `registered`, and any confirmed match that was made while the finder still held the item is re-pointed at the new stored item.
 4. The worker scores the item against open lost reports and creates system suggestions.
 5. Staff confirm a suggestion on the lost-report page or in the match queue.
-6. The handover form opens pre-filled; staff enter the receiver's name and the last four digits of their ID.
+6. The handover form opens pre-filled with the confirmed claimant; staff enter the receiver's name and the last four digits of their ID.
 7. The handover is atomic: it creates the `Handover` record, marks the item `returned`, writes the status log, marks the linked found report `returned` when applicable, marks the confirmed lost claim `returned` when one exists, and notifies the reporter in Telegram.
 8. Items can also be **disposed** or **transferred** from the item page, with a mandatory note. These actions are staff-only and always logged.
+
+**Kept-by-finder items** stay with the finder after the report is submitted. If the finder later brings the item in, staff use the found-report table's **Mark as handed to office** action; the report then appears in the receive selector, so the normal receive → handover flow resolves the confirmed claim. The handover form never pre-fills the finder as the receiver.
 
 Retention is derived, not a flag column. The worker reports items that are expiring or overdue, but it never disposes anything automatically: the course specification requires every storage status change to be a staff decision.
 
@@ -365,7 +367,7 @@ Lost flow: category → title → description → colour → building → area �
 
 Found flow: category → title → description → colour → building → area → date found → optional photo → custody → contact-sharing consent → summary.
 
-Titles and descriptions are stored in the reporter's language and automatically translated into the other two language streams when `AUTO_TRANSLATE` is enabled.
+Titles and descriptions are stored in the reporter's language and automatically translated into the other two language streams when `AUTO_TRANSLATE` is enabled. Re-saving a report without changing its canonical title/description leaves the existing translations untouched, even if the reporter later switches language.
 
 ### Notifications
 
@@ -413,9 +415,10 @@ suggested ──confirm──> confirmed
 ```
 
 - Suggestions can come from the **system** worker, from **staff**, or from a **user** pressing "this is mine".
-- The pair `(lost_report, stored_item)` is unique, so the worker never duplicates a suggestion.
-- Confirming a fresh suggestion moves the lost report from `open` to `matched`.
+- The pair `(lost_report, stored_item)` is unique, so the worker never duplicates a suggestion. The worker also tracks the found report behind an item, so a "this is mine" suggestion is not duplicated once the finder hands the item in.
+- Confirming a fresh suggestion moves the lost report from `open` to `matched`. A found-report-only suggestion resolves the linked stored item when one exists, so the handover can find the claim.
 - Rejecting the last confirmed suggestion moves the report back to `open`.
+- When a report expires, its still-pending suggestions are rejected in the same worker pass and can no longer be decided.
 - A confirmed suggestion pre-fills the handover receiver from the claimant; the handover itself remains a separate staff action. Confirming never happens automatically.
 - The reporter's Yes/No answer and the staff decision use the same transition service (`web/matching/services.py`).
 
@@ -428,8 +431,8 @@ The worker starts one asynchronous loop with a **30-second heartbeat**. The main
 Each work cycle performs three preserving jobs:
 
 1. **Retention cycle** — counts items expiring within 7 days and items past their retention deadline ("ready for disposal"). It never changes a status.
-2. **Expiry cycle** — open lost reports older than 90 days become `expired`, and the reporter receives a reopen button in the bot. A report reopened from the bot is not expired again on the next pass.
-3. **Matching cycle** — every open lost report is scored against every in-storage item. Pairs above the system threshold become `MatchSuggestion` rows with `created_by="system"`, and the reporter is notified. Existing pairs are skipped.
+2. **Expiry cycle** — open lost reports older than 90 days become `expired`, their still-pending match suggestions are rejected, and the reporter receives a reopen button in the bot. A report reopened from the bot is not expired again on the next pass.
+3. **Matching cycle** — every open lost report is scored against every in-storage item. Pairs above the system threshold become `MatchSuggestion` rows with `created_by="system"`, and the reporter is notified. Existing pairs are skipped, including a pair already covered by a suggestion that points at the item's found report.
 
 The digest job runs on every heartbeat (see below). Failures are logged and retried on the next tick; a failed work cycle never stops the service.
 
@@ -448,6 +451,8 @@ Once per local day, at `WORKER_DIGEST_HOUR` (default **09:00 Asia/Tashkent**), t
 
 The digest text is written in Uzbek for the office team. Sending is idempotent per local date: `DigestRun.sent_on` is unique, so a worker restart or a duplicate tick cannot send the same day twice. A failed send is retried after `DIGEST_RETRY_MINUTES` (default 10) and gives up after 5 attempts for that day; the next day starts fresh.
 
+The text is capped below Telegram's 4096-character message limit. Item lines are added whole, so the cap can never split an HTML tag; when items are hidden, a trailing "… yana N ta" note keeps the count honest.
+
 If `BOT_TOKEN` or `OFFICE_GROUP_ID` is missing or invalid, the digest is a safe no-op and the reason is logged.
 
 ---
@@ -461,7 +466,7 @@ If `BOT_TOKEN` or `OFFICE_GROUP_ID` is missing or invalid, the digest is a safe 
 | `month` | `YYYY-MM` | current month |
 | `status` | `in_storage`, `returned`, `disposed`, `transferred`, `all` | `in_storage` |
 
-The export is status-aware: the default file is the physical inventory, and the export link on the storage page carries the currently active status filter, so the downloaded file matches the list on screen. Invalid status values fall back to `in_storage`; a malformed month falls back to the current month.
+The export is status-aware: the default file is the physical inventory, and the export link on the storage page carries the currently active status filter, so the downloaded file matches the list on screen. Invalid status values fall back to `in_storage`; a malformed month falls back to the current month. The month and the received date both follow `settings.TIME_ZONE` (Asia/Tashkent), so an item received late on the last UTC day of a month lands in the correct local month.
 
 The file is UTF-8 with a BOM (so Excel opens it correctly), has localized headers and a filename such as `inventory-2026-11.csv`.
 
@@ -609,15 +614,15 @@ docker compose exec -T -e DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,web,testserve
 
 The `testserver` host is required because Django's test client sends requests with that host name.
 
-Current result: **71 tests, all passing**.
+Current result: **118 tests, all passing**.
 
 | App | Covered behaviour |
 | --- | --- |
-| `catalog` | Reference-data rules, translation fallbacks, seed consistency and idempotency |
-| `matching` | Scoring rules, threshold, duplicate-suggestion guard, confirm/reject transitions |
-| `storage` | Retention calculation, status transitions, handover close-out, audit logs, status-aware CSV export |
-| `reports` | Office found-report table: staff gate, filters, linked item and consent columns |
-| `bot_app` | Telegram user model, digest idempotency and retry behaviour, notification safety |
+| `catalog` | Reference-data rules, translation fallbacks, seed consistency and idempotency, location delete guard counting both report kinds |
+| `matching` | Scoring rules, threshold, duplicate-suggestion guards across stored items and found reports, confirm/reject transitions, closed-report and unavailable-item guards, one confirmed match per report, expiry closing pending suggestions, found-only claims resolving the stored item |
+| `storage` | Retention calculation, status transitions, handover close-out, audit logs, status-aware CSV export with local dates, receive-form validation, shelf availability probe, item-delete safety |
+| `reports` | Office found-report table: staff gate, filters, linked item and consent columns, custody handover marker, language-stream stability |
+| `bot_app` | Telegram user model, digest idempotency, retry behaviour and the 4096-character cap, notification safety |
 
 Additional checks run during development:
 
@@ -721,7 +726,7 @@ Implemented and verified:
 - [x] Daily office digest with per-date idempotency
 - [x] Status-aware monthly CSV export
 - [x] Uzbek / Russian / English office catalogs
-- [x] 53 automated Django tests
+- [x] 118 automated Django tests
 
 Remaining roadmap items:
 

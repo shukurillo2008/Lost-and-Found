@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.conf import settings
 from django.utils import timezone
 
@@ -118,3 +120,28 @@ class ItemStatusLog(models.Model):
 
     def __str__(self):
         return f"{self.item.shelf_code}: {self.old_status} → {self.new_status} by {self.staff_id}"
+
+
+@receiver(pre_delete, sender=StoredItem)
+def _drop_suggestions_without_a_report_source(sender, instance, **kwargs):
+    """Delete item-only suggestions before Django nulls their FK.
+
+    ``MatchSuggestion.stored_item`` uses ``SET_NULL`` and the table has a
+    CHECK constraint requiring either a stored item or a found report. A
+    suggestion that only pointed at this item would violate that constraint
+    during the delete, so remove it first. Suggestions that also carry a
+    ``found_report`` stay valid with a null item and are kept.
+    """
+    from reports.models import LostReport
+
+    orphans = instance.match_suggestions.filter(found_report__isnull=True)
+    confirmed_report_ids = list(
+        orphans.filter(status="confirmed").values_list("lost_report_id", flat=True)
+    )
+    orphans.delete()
+    if confirmed_report_ids:
+        LostReport.objects.filter(
+            pk__in=confirmed_report_ids, status="matched"
+        ).exclude(
+            match_suggestions__status="confirmed"
+        ).update(status="open")

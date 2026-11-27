@@ -88,6 +88,35 @@ class ReportInternals(models.Model):
         value = getattr(self, f"description_{lang}", "") or ""
         return value or self.description
 
+    def _sync_translations_if_needed(self) -> None:
+        """Re-sync the language streams only when the canonical text changed.
+
+        ``_sync_translated_*`` keys the source stream off the reporter's
+        *current* language. Saving an unchanged report after the reporter
+        switches language would otherwise overwrite the correct translation
+        of that language with the old canonical text.
+        """
+        if self._state.adding or self.pk is None:
+            sync_title = sync_description = True
+        else:
+            previous = (
+                type(self).objects.filter(pk=self.pk)
+                .values("title", "description")
+                .first()
+            )
+            sync_title = previous is None or previous["title"] != self.title
+            sync_description = (
+                previous is None or previous["description"] != self.description
+            )
+        if sync_title:
+            self._sync_translated_title()
+        if sync_description:
+            self._sync_translated_description()
+
+    def save(self, *args, **kwargs):
+        self._sync_translations_if_needed()
+        super().save(*args, **kwargs)
+
 
 class LostReport(ReportInternals):
     """A user's claim that they lost an item."""
@@ -130,11 +159,6 @@ class LostReport(ReportInternals):
             models.Index(fields=["category", "status"], name="lost_cat_status_idx"),
             models.Index(fields=["reporter", "status"], name="lost_reporter_status_idx"),
         ]
-
-    def save(self, *args, **kwargs):
-        self._sync_translated_title()
-        self._sync_translated_description()
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"[LOST {self.pk}] {self.title} ({self.status})"
@@ -181,11 +205,6 @@ class FoundReport(ReportInternals):
             models.Index(fields=["reporter", "status"], name="found_reporter_status_idx"),
             models.Index(fields=["category", "status"], name="found_cat_status_idx"),
         ]
-
-    def save(self, *args, **kwargs):
-        self._sync_translated_title()
-        self._sync_translated_description()
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"[FOUND {self.pk}] {self.title} ({self.status})"

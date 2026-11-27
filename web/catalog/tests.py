@@ -11,9 +11,12 @@ from io import StringIO
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
+from bot_app.models import TelegramUser
 from catalog.models import Category, Color, Location
+from catalog.translation import disabled
 from matching.models import Handover, MatchSuggestion
 from reports.models import FoundReport, LostReport
 from storage.models import ItemStatusLog, StoredItem
@@ -158,3 +161,68 @@ class SeedReferenceTests(TestCase):
         self.assertEqual(Location.objects.count(), 20)
         self.assertEqual(Category.objects.count(), 9)
         self.assertEqual(Color.objects.count(), 12)
+
+
+class LocationDeleteGuardTests(TestCase):
+    """A location referenced by a found report must not be deletable (the FK
+    is PROTECT), and the usage count must include both report kinds."""
+
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        with disabled():
+            cls.staff = User.objects.create_user(
+                "loc_staff", password="pw", is_staff=True
+            )
+            cls.reporter = TelegramUser.objects.create(
+                telegram_id=940001, display_name="Loc Reporter", language="uz"
+            )
+            cls.category = Category.objects.create(
+                name_uz="LocTest Things", emoji="x", retention_days=30
+            )
+            cls.color = Color.objects.create(name_uz="LocTest Blue")
+            cls.location = Location.objects.create(
+                building_uz="LocTest Main", area_uz="LocTest Hall"
+            )
+
+    def test_found_report_usage_is_counted(self):
+        with disabled():
+            FoundReport.objects.create(
+                reporter=self.reporter, category=self.category, color=self.color,
+                location=self.location, title="found here", description="desc",
+                date_found=timezone.localdate(), custody="handed_to_office",
+            )
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("catalog_location_form"))
+        self.assertEqual(response.status_code, 200)
+        row = next(
+            row for row in response.context["rows"]
+            if row["location"].pk == self.location.pk
+        )
+        self.assertEqual(row["report_count"], 1)
+
+    def test_found_report_blocks_location_deletion(self):
+        with disabled():
+            FoundReport.objects.create(
+                reporter=self.reporter, category=self.category, color=self.color,
+                location=self.location, title="found here", description="desc",
+                date_found=timezone.localdate(), custody="handed_to_office",
+            )
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("catalog_location_form"),
+            {"action": "delete", "location_id": self.location.pk},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Location.objects.filter(pk=self.location.pk).exists())
+
+    def test_unused_location_is_deleted(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("catalog_location_form"),
+            {"action": "delete", "location_id": self.location.pk},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Location.objects.filter(pk=self.location.pk).exists())

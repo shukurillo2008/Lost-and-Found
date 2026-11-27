@@ -862,4 +862,32 @@ msgstr "Исправьте следующее:"
 msgid "Please fill in this field."
 msgstr "Заполните это поле."
 
+msgid "That found report does not exist."
+msgstr "Такой заявки о находке не существует."
+
+msgid "Only reports handed to the office can be linked."
+msgstr "Связать можно только заявки, сданные в офис."
+
+msgid "Only open found reports can be linked."
+msgstr "Связать можно только открытые заявки о находках."
+
+msgid "This suggestion can no longer be decided."
+msgstr "По этому предложению больше нельзя принять решение."
+
+msgid "This report is closed; its matches can no longer be changed."
+msgstr "Эта заявка закрыта; её совпадения больше нельзя изменить."
+
+msgid "This match is no longer available."
+msgstr "Это совпадение больше не доступно."
+
+msgid "Mark as handed to office"
+msgstr "Отметить как сданное в офис"
+
+msgid "Report marked as handed to the office."
+msgstr "Заявка отмечена как сданная в офис."
+
+msgid "Only open reports kept by the finder can change custody."
+msgstr "Изменить место хранения можно только для открытых заявок, оставленных нашедшим."
+
+
 

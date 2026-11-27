@@ -16,10 +16,13 @@ from bot_app.notifications import (
     CONFIRM_PREFIX,
     OUTCOME_ALREADY,
     OUTCOME_CONFIRMED,
+    OUTCOME_ITEM_UNAVAILABLE,
     OUTCOME_NOT_FOUND,
     OUTCOME_NOT_YOURS,
     OUTCOME_REJECTED,
     OUTCOME_REOPENED,
+    OUTCOME_REPORT_CLOSED,
+    OUTCOME_SOURCE_UNAVAILABLE,
     REJECT_PREFIX,
     REOPEN_PREFIX,
     decide_from_bot,
@@ -38,6 +41,9 @@ RESULT_KEYS = {
     OUTCOME_ALREADY: "n_already",
     OUTCOME_NOT_FOUND: "n_gone",
     OUTCOME_NOT_YOURS: "n_not_yours",
+    OUTCOME_REPORT_CLOSED: "n_closed",
+    OUTCOME_ITEM_UNAVAILABLE: "n_unavailable",
+    OUTCOME_SOURCE_UNAVAILABLE: "n_unavailable",
 }
 
 REOPEN_KEYS = {
@@ -74,7 +80,13 @@ async def _apply(call: CallbackQuery, django_user: TelegramUser, action: str):
 
     await call.answer(
         result_text,
-        show_alert=outcome == OUTCOME_NOT_YOURS,
+        show_alert=outcome
+        in (
+            OUTCOME_NOT_YOURS,
+            OUTCOME_REPORT_CLOSED,
+            OUTCOME_ITEM_UNAVAILABLE,
+            OUTCOME_SOURCE_UNAVAILABLE,
+        ),
     )
     if outcome in (OUTCOME_CONFIRMED, OUTCOME_REJECTED) and call.message is not None:
         # A confirmation carries the finder's contact details (opt-in), so
