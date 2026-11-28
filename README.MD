@@ -30,6 +30,7 @@ All three services share one SQLite database and one media volume, so a report c
 - [Tests](#tests)
 - [Privacy and security](#privacy-and-security)
 - [Deployment](#deployment)
+- [Demo and defense](#demo-and-defense)
 - [Project structure](#project-structure)
 - [Project status](#project-status)
 - [Author](#author)
@@ -651,20 +652,38 @@ The second command must report `No changes detected`.
 
 ## Deployment
 
-### Supported deployment: Docker Compose
+### Supported deployment: Docker Compose + Caddy
 
-The repository is deployed as three containers on one host. The `web` service exposes port 8000; the bot and worker make outbound connections only.
+The repository deploys as four containers on one host: `web` (gunicorn), `bot` (long polling), `worker`, and `caddy` (HTTPS). Only Caddy publishes ports; the bot and worker make outbound connections only, and the web container is reachable only on the Compose network.
 
-Production checklist:
+1. Point the domain's A/AAAA record at the host.
+2. Copy `.env.example` to `.env` and set:
+   - `DJANGO_SECRET_KEY` — a long random string;
+   - `DJANGO_DEBUG=False`;
+   - `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,web,<domain>`;
+   - `DJANGO_CSRF_TRUSTED_ORIGINS=https://<domain>`;
+   - `DJANGO_HTTPS=True`;
+   - `LNF_DOMAIN=<domain>`;
+   - `BOT_TOKEN` and `OFFICE_GROUP_ID`.
+3. Build and start everything with the production overlay:
 
-1. Set `DJANGO_DEBUG=False` and a strong `DJANGO_SECRET_KEY`.
-2. Add the public domain or server IP to `DJANGO_ALLOWED_HOSTS`.
-3. Put the web service behind an HTTPS reverse proxy (nginx, Caddy or the hosting provider's proxy).
-4. Keep the `sqlite_data`, `media_data` and `static_data` volumes on persistent storage.
-5. Run exactly **one** bot container (long polling allows only one poller per token).
-6. Run one worker container. The digest is idempotent, but a single worker keeps the logs and cycle timing predictable.
-7. Set `BOT_TOKEN` and `OFFICE_GROUP_ID` in the host environment or `.env`, then recreate the containers.
+   ```bash
+   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+   ```
+
+   The overlay removes the web container's host port, adds Caddy on 80/443 and mounts `deploy/Caddyfile`, which proxies to `web:8000`.
+4. Allow inbound TCP 80/443 (and UDP 443 for HTTP/3) in the host firewall. No other port is exposed by the overlay.
+5. Caddy obtains and renews the Let's Encrypt certificate automatically; open `https://<domain>/admin/` and change the seeded admin password, or create a superuser:
+
+   ```bash
+   docker compose exec web python web/manage.py createsuperuser
+   ```
+
+6. Keep the `sqlite_data`, `media_data`, `static_data` and `caddy_data` volumes on persistent storage.
+7. Run exactly **one** bot container (long polling allows only one poller per token) and one worker container.
 8. Back up the SQLite database and the media volume together; they form one consistent dataset.
+
+`DJANGO_HTTPS=True` enables secure session/CSRF cookies and HSTS (one year by default, override with `DJANGO_HSTS_SECONDS`). `SECURE_PROXY_SSL_HEADER` makes Django trust the proxy's `X-Forwarded-Proto: https`; the proxy owns the HTTP→HTTPS redirect, so the container health check stays on plain HTTP. Without a real domain, set `LNF_DOMAIN=localhost`: Caddy then uses its internal CA and browsers show a certificate warning.
 
 ### Public URL
 
@@ -673,6 +692,13 @@ Production checklist:
 ### Telegram bot
 
 `@lost_and_found_ttpu_bot` is the bot handle used by this project. It runs while the `bot` container is running and the configured token is valid.
+
+---
+
+## Demo and defense
+
+- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) — a 6–8 minute, scene-by-scene recording plan with the exact pages, bot flows and commands.
+- [`docs/DEFENSE_NOTES.md`](docs/DEFENSE_NOTES.md) — architecture map, requirement coverage, design trade-offs, a Q&A bank and a live-change rehearsal.
 
 ---
 
@@ -704,6 +730,12 @@ Production checklist:
 │   └── locale/                  uz / ru gettext catalogs
 ├── worker/
 │   └── main.py                  retention, expiry, matching and digest loop
+├── deploy/
+│   ├── Caddyfile                HTTPS reverse proxy for the office UI
+│   └── docker-compose.prod.yml  production overlay (Caddy, web port removed)
+├── docs/
+│   ├── DEMO_SCRIPT.md           scene-by-scene demo recording plan
+│   └── DEFENSE_NOTES.md         architecture, Q&A and live-change rehearsal
 ├── Dockerfile                   Python 3.11 image
 ├── docker-compose.yml           web, bot and worker services
 ├── requirements.txt
@@ -726,15 +758,17 @@ Implemented and verified:
 - [x] Daily office digest with per-date idempotency
 - [x] Status-aware monthly CSV export
 - [x] Uzbek / Russian / English office catalogs
+- [x] Production HTTPS configuration (Caddy overlay, secure cookies, HSTS, CSRF origins)
+- [x] Demo script and defense Q&A notes (`docs/`)
 - [x] 118 automated Django tests
 
 Remaining roadmap items:
 
 - [ ] Public deployment with a recorded web URL
+- [ ] Record the demo video and rehearse the defense
 - [ ] Bonus: printable QR labels for shelf items
 - [ ] Bonus: public web search for found items
 - [ ] Bonus: CI pipeline
-- [ ] Demo video and project defense
 
 Known limitations:
 

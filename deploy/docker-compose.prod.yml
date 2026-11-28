@@ -1,0 +1,32 @@
+# HTTPS overlay for a single-host production deployment.
+#
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# Caddy terminates TLS on 80/443 and proxies to the web container. The web
+# container's host port is removed so the office UI is reachable only through
+# the proxy (the bot and worker never listen on a port).
+services:
+  web:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: lnf_caddy
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      LNF_DOMAIN: ${LNF_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

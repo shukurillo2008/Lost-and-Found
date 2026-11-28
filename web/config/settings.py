@@ -32,6 +32,34 @@ ALLOWED_HOSTS = [
 if "test" in sys.argv:  # Django test client requests arrive from server "testserver"
     ALLOWED_HOSTS.append("testserver")
 
+# --- Public deployment (HTTPS reverse proxy) --------------------------------
+# The web service is expected to run behind Caddy/nginx or the host's proxy.
+# The proxy terminates TLS and forwards ``X-Forwarded-Proto: https``; without
+# this header Django would build http:// absolute URLs behind an https site.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Full origins (scheme + host) that may submit CSRF-protected forms, e.g.
+# DJANGO_CSRF_TRUSTED_ORIGINS=https://lostfound.example.com
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in env("DJANGO_CSRF_TRUSTED_ORIGINS").split(",")
+    if origin.strip()
+]
+
+# Enable when the site is served over HTTPS. The proxy owns the HTTP→HTTPS
+# redirect (a Django redirect would break the container health check), so
+# only the cookie/HSTS hardening is toggled here.
+HTTPS_ONLY = env("DJANGO_HTTPS", "False").lower() in ("1", "true", "yes")
+if HTTPS_ONLY:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    try:
+        SECURE_HSTS_SECONDS = int(env("DJANGO_HSTS_SECONDS", "31536000"))
+    except (TypeError, ValueError):
+        SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
